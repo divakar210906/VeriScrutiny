@@ -37,6 +37,26 @@ function RootRedirect() {
   );
 }
 
+function ProtectedRoute({
+  children,
+  allowedRole,
+}: {
+  children: React.ReactNode;
+  allowedRole?: "institution" | "aicte";
+}) {
+  const { isAuthenticated, userRole } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRole && userRole !== allowedRole) {
+    return <Navigate to={userRole === "aicte" ? "/aicte/dashboard" : "/institution/dashboard"} replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -48,7 +68,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
 
         {/* 1. INSTITUTION PORTAL ROUTES */}
-        <Route path="/institution" element={<InstitutionLayout />}>
+        <Route path="/institution" element={<ProtectedRoute allowedRole="institution"><InstitutionLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/institution/dashboard" replace />} />
           <Route path="dashboard" element={<InstitutionDashboardPage />} />
           <Route path="required-documents" element={<RequiredDocumentsPage />} />
@@ -60,13 +80,17 @@ function App() {
         </Route>
 
         {/* 2. AICTE IN-CHARGE PORTAL ROUTES */}
-        <Route path="/aicte" element={<AicteLayout />}>
+        <Route path="/aicte" element={<ProtectedRoute allowedRole="aicte"><AicteLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/aicte/dashboard" replace />} />
           <Route path="dashboard" element={<AicteDashboardPage />} />
           <Route path="institutions" element={<AicteInstitutionsPage />} />
           <Route path="institution/:id" element={<AicteInstitutionDetailPage />} />
           <Route path="review/:institutionId/:docId" element={<AicteDocumentReviewPage />} />
+          <Route path="scrutiny/:id" element={<AicteDocumentReviewPage />} />
           <Route path="report/:institutionId/:docId" element={<AicteReportPage />} />
+          <Route path="reports/:id" element={<AicteReportPage />} />
+          <Route path="reports" element={<Navigate to="/aicte/report/KEC001/doc-2" replace />} />
+          <Route path="pending" element={<Navigate to="/aicte/institutions?filter=pending" replace />} />
           <Route path="history" element={<AicteHistoryPage />} />
           <Route path="profile" element={<AicteProfilePage />} />
           <Route path="*" element={<Navigate to="/aicte/dashboard" replace />} />

@@ -1,5 +1,5 @@
 // src/context/AuthContext.tsx
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import type { UserRole } from "../types";
 import { institution as defaultInstitution } from "../mockData";
@@ -17,29 +17,46 @@ interface AuthContextProps {
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [userRole, setUserRole] = useState<UserRole>("institution"); // Default to institution view
-  const [institutionId, setInstitutionId] = useState<string>("KEC001");
-  const [officerId, setOfficerId] = useState<string>("AICTE001");
-  const [institutionName, setInstitutionName] = useState<string>(defaultInstitution.name);
+const getStoredSession = () => {
+  const fallback = {
+    isAuthenticated: false,
+    role: "institution" as UserRole,
+    institutionId: "KEC001",
+    officerId: "AICTE-SR-9042",
+    institutionName: defaultInstitution.name,
+  };
 
-  // Read stored auth session
-  useEffect(() => {
-    const stored = localStorage.getItem("veriscrutiny_auth_session");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setIsAuthenticated(true);
-        setUserRole(parsed.role || "institution");
-        setInstitutionId(parsed.institutionId || "KEC001");
-        setOfficerId(parsed.officerId || "AICTE001");
-        setInstitutionName(parsed.institutionName || defaultInstitution.name);
-      } catch {
-        // fallback
-      }
-    }
-  }, []);
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const stored = window.localStorage.getItem("veriscrutiny_auth_session");
+  if (!stored) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<typeof fallback>;
+    return {
+      isAuthenticated: true,
+      role: (parsed.role as UserRole) || fallback.role,
+      institutionId: parsed.institutionId || fallback.institutionId,
+      officerId: parsed.officerId || fallback.officerId,
+      institutionName: parsed.institutionName || fallback.institutionName,
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const session = getStoredSession();
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(session.isAuthenticated);
+  const [userRole, setUserRole] = useState<UserRole>(session.role);
+  const [institutionId, setInstitutionId] = useState<string>(session.institutionId);
+  const [officerId, setOfficerId] = useState<string>(session.officerId);
+  const [institutionName, setInstitutionName] = useState<string>(session.institutionName);
 
   const persistSession = (role: UserRole, instId: string, offId: string) => {
     localStorage.setItem(
@@ -58,9 +75,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserRole(role);
     if (role === "institution") {
       setInstitutionId(id || "KEC001");
+      setInstitutionName(defaultInstitution.name);
       persistSession("institution", id || "KEC001", officerId);
     } else {
       setOfficerId(id || "AICTE001");
+      setInstitutionName(defaultInstitution.name);
       persistSession("aicte", institutionId, id || "AICTE001");
     }
     return true;
@@ -68,6 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const switchRole = (newRole: UserRole) => {
     setUserRole(newRole);
+    setInstitutionName(defaultInstitution.name);
     persistSession(newRole, institutionId, officerId);
   };
 

@@ -11,9 +11,21 @@ export type DocumentStatus =
   | "Submitted"
   | "Pending"
   | "Needs Correction"
+  | "Deficiency Raised"
+  | "Re-submitted"
   | "Not Submitted";
 
 export type RuleResult = "PASS" | "WARNING" | "FAIL";
+
+export type VerificationTag = "FOUND" | "MATCHED" | "MISMATCH" | "NOT FOUND" | "REVIEW REQUIRED";
+
+export interface ExtractedField {
+  field: string;
+  value: string;
+  verification: VerificationTag;
+}
+
+export type SystemRecommendation = "VERIFICATION PASSED" | "NEEDS CLARIFICATION" | "DEFICIENCY DETECTED";
 
 export interface ChecklistItem {
   id: string;
@@ -42,7 +54,12 @@ export interface DocumentDetails {
   fileSize: string;
   checksum: string;
   status: DocumentStatus;
+  trackingId?: string;
   rejectionReason?: string;
+  officerRemarks?: string;
+  recommendation?: SystemRecommendation;
+  recommendationReason?: string;
+  extractedFields?: ExtractedField[];
   scrutinySummary?: {
     lastScrutinized: string;
     scrutinizedBy: string;
@@ -52,6 +69,9 @@ export interface DocumentDetails {
     passed: number;
     warnings: number;
     failed: number;
+    recommendation?: SystemRecommendation;
+    officerDecision?: DocumentStatus;
+    officerRemarks?: string;
   };
 }
 
@@ -66,6 +86,7 @@ export interface Document {
   expiryDate: string;
   submissionDate: string; // ISO string
   status: DocumentStatus;
+  trackingId?: string;
   lastScrutinized?: string;
   details: DocumentDetails;
   checklist: ChecklistItem[];
@@ -77,6 +98,7 @@ export interface RequiredDocument {
   name: string;
   category: "Fire & Safety" | "Academic / Affiliation" | "Infrastructure" | "Governance & Finance";
   requirement: "Mandatory" | "Conditional";
+  validityRequirement?: string;
   submitted: boolean;
   docId?: string; // Links to uploaded Document if submitted
   status: DocumentStatus;
@@ -159,7 +181,8 @@ export interface VerificationHistoryItem {
   category: string;
   scrutinyDate: string;
   scrutinizedBy: string;
-  result: DocumentStatus;
+  action?: string;
+  result: DocumentStatus | string;
   passedCount: number;
   warningCount: number;
   failedCount: number;

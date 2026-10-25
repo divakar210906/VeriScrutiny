@@ -5,29 +5,25 @@ import {
   ShieldCheck, 
   LayoutDashboard, 
   Building, 
+  Clock, 
   History, 
-  UserCheck, 
-  LogOut, 
-  ArrowRightLeft 
+  FileText, 
+  LogOut 
 } from "lucide-react";
 import Footer from "./Footer";
 import Breadcrumb from "./Breadcrumb";
 
 const aicteNavItems = [
-  { name: "Scrutiny Dashboard", path: "/aicte/dashboard", icon: LayoutDashboard },
-  { name: "Institutions Directory", path: "/aicte/institutions", icon: Building },
-  { name: "Verification Audit Logs", path: "/aicte/history", icon: History },
-  { name: "Officer Profile", path: "/aicte/profile", icon: UserCheck },
+  { name: "Dashboard", path: "/aicte/dashboard", icon: LayoutDashboard },
+  { name: "Institutions", path: "/aicte/institutions", icon: Building },
+  { name: "Pending Scrutiny", path: "/aicte/institutions?filter=pending", icon: Clock },
+  { name: "Scrutiny History", path: "/aicte/history", icon: History },
+  { name: "Reports", path: "/aicte/report/KEC001/doc-2", icon: FileText },
 ];
 
 export default function AicteLayout() {
-  const { officerId, switchRole, logout } = useAuth();
+  const { officerId, logout } = useAuth();
   const navigate = useNavigate();
-
-  const handleSwitchToInstitution = () => {
-    switchRole("institution");
-    navigate("/institution/dashboard");
-  };
 
   const handleLogout = () => {
     logout();
@@ -72,16 +68,6 @@ export default function AicteLayout() {
                   Officer ID: {officerId} • Southern Regional Office (Chennai)
                 </span>
               </div>
-
-              {/* Demo Role Switcher Button */}
-              <button
-                onClick={handleSwitchToInstitution}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0b2545] hover:bg-slate-800 text-white rounded text-xs font-semibold border border-amber-400/50 shadow-sm transition"
-                title="Switch to Institution view for demonstration"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-amber-300" />
-                <span>Switch to Institution View 🏫</span>
-              </button>
 
               {/* Logout */}
               <button

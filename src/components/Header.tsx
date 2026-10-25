@@ -58,7 +58,7 @@ export default function Header() {
                 <span className="truncate max-w-[220px]">{institutionName}</span>
               </div>
               <span className="text-[11px] text-slate-400 font-mono">
-                Permanent AICTE ID: 1-3512345671
+                AICTE ID: KEC001
               </span>
             </div>
 

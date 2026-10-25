@@ -15,6 +15,9 @@ import {
   ShieldCheck 
 } from "lucide-react";
 
+const todayIsoDate = () => new Date().toISOString().split("T")[0];
+const oneYearLaterIsoDate = () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
 export default function SubmitDocumentPage() {
   const navigate = useNavigate();
   const { docs, setDocs } = useDocuments();
@@ -26,8 +29,8 @@ export default function SubmitDocumentPage() {
     academicYear: "2026-2027",
     documentNumber: "",
     issuingAuthority: "",
-    issueDate: new Date().toISOString().split("T")[0],
-    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    issueDate: todayIsoDate(),
+    expiryDate: oneYearLaterIsoDate(),
     uploadedBy: "Registrar / Institutional Nodal Officer",
     declarationConfirmed: false,
     file: null as File | null,

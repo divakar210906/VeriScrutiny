@@ -7,10 +7,8 @@ import {
   ClipboardList, 
   Upload, 
   FileCheck, 
-  Landmark, 
   Bell, 
-  LogOut, 
-  ArrowRightLeft 
+  LogOut 
 } from "lucide-react";
 import Footer from "./Footer";
 import Breadcrumb from "./Breadcrumb";
@@ -20,18 +18,12 @@ const institutionNavItems = [
   { name: "Required Documents", path: "/institution/required-documents", icon: ClipboardList },
   { name: "Upload Document", path: "/institution/upload", icon: Upload },
   { name: "My Submissions", path: "/institution/submissions", icon: FileCheck },
-  { name: "Institution Profile", path: "/institution/profile", icon: Landmark },
   { name: "Notifications", path: "/institution/notifications", icon: Bell },
 ];
 
 export default function InstitutionLayout() {
-  const { institutionName, institutionId, switchRole, logout } = useAuth();
+  const { institutionName, institutionId, logout } = useAuth();
   const navigate = useNavigate();
-
-  const handleSwitchToAicte = () => {
-    switchRole("aicte");
-    navigate("/aicte/dashboard");
-  };
 
   const handleLogout = () => {
     logout();
@@ -73,19 +65,9 @@ export default function InstitutionLayout() {
               <div className="hidden md:flex flex-col text-right">
                 <span className="font-bold text-slate-100 truncate max-w-xs">{institutionName}</span>
                 <span className="text-[11px] text-slate-400 font-mono">
-                  ID: {institutionId} • AICTE Perm ID: 1-3512345671
+                  AICTE ID: {institutionId}
                 </span>
               </div>
-
-              {/* Demo Role Switcher Button */}
-              <button
-                onClick={handleSwitchToAicte}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#134074] hover:bg-blue-700 text-white rounded text-xs font-semibold border border-blue-400/40 shadow-sm transition"
-                title="Switch to AICTE In-charge view for demonstration"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-amber-300" />
-                <span>Switch to AICTE View 🏛️</span>
-              </button>
 
               {/* Logout */}
               <button

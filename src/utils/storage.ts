@@ -40,6 +40,8 @@ export function updateDocumentStatus(
             status: newStatus,
             lastScrutinized: new Date().toISOString(),
             reason: scrutinizerRemarks || doc.details.scrutinySummary.reason,
+            officerRemarks: scrutinizerRemarks || doc.details.scrutinySummary.officerRemarks,
+            officerDecision: newStatus,
           }
         : undefined;
 
@@ -50,6 +52,11 @@ export function updateDocumentStatus(
         details: {
           ...doc.details,
           status: newStatus,
+          rejectionReason:
+            newStatus === "Deficiency Raised" || newStatus === "Needs Correction" || newStatus === "Rejected"
+              ? scrutinizerRemarks || doc.details.rejectionReason
+              : doc.details.rejectionReason,
+          officerRemarks: scrutinizerRemarks || doc.details.officerRemarks,
           scrutinySummary: updatedSummary,
         },
       };
@@ -63,6 +70,30 @@ export function updateDocumentStatus(
   const targetDoc = updated.find((d) => d.id === id);
   if (targetDoc) {
     const historyList = loadVerificationHistory();
+    const nowFormatted = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const actionName =
+      newStatus === "Verified"
+        ? "Document Approved"
+        : newStatus === "Deficiency Raised"
+        ? "Deficiency Raised"
+        : newStatus === "Rejected"
+        ? "Document Rejected"
+        : newStatus === "Re-submitted"
+        ? "Re-submission Received"
+        : "Scrutiny Executed";
+
+    const resultLabel =
+      newStatus === "Deficiency Raised"
+        ? "Awaiting Institution Response"
+        : newStatus;
+
     const newHistoryItem: VerificationHistoryItem = {
       id: "hist-" + Date.now(),
       reportId: `SCR-2026-TN-KEC-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -73,15 +104,22 @@ export function updateDocumentStatus(
       documentName: targetDoc.name,
       documentNumber: targetDoc.documentNumber,
       category: targetDoc.category,
-      scrutinyDate: new Date().toISOString(),
-      scrutinizedBy: "Dr. K. Senthil Kumar (Senior Scrutiny Officer, AICTE)",
-      result: newStatus,
+      scrutinyDate: nowFormatted,
+      scrutinizedBy: "AICTE-SR-9042",
+      action: actionName,
+      result: resultLabel,
       passedCount: targetDoc.checklist.filter((c) => c.result === "PASS").length,
       warningCount: targetDoc.checklist.filter((c) => c.result === "WARNING").length,
       failedCount: targetDoc.checklist.filter((c) => c.result === "FAIL").length,
-      remarks: scrutinizerRemarks || `Status manually updated to ${newStatus}.`,
+      remarks: scrutinizerRemarks || `Status updated to ${newStatus}.`,
     };
     saveVerificationHistory([newHistoryItem, ...historyList]);
+  }
+
+  try {
+    window.dispatchEvent(new Event("veriscrutiny_update"));
+  } catch {
+    // window not available in non-browser context
   }
 
   return updated;

@@ -4,8 +4,8 @@ import type { Document, DocumentStatus } from "../types";
 import { loadDocuments, saveDocuments, updateDocumentStatus } from "../utils/storage";
 
 export function useDocuments() {
-  const [docs, setDocs] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [docs, setDocs] = useState<Document[]>(() => loadDocuments());
+  const [loading, setLoading] = useState(false);
 
   const refreshDocs = useCallback(() => {
     const loaded = loadDocuments();
@@ -14,7 +14,13 @@ export function useDocuments() {
   }, []);
 
   useEffect(() => {
-    refreshDocs();
+    const handleUpdate = () => refreshDocs();
+    window.addEventListener("veriscrutiny_update", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("veriscrutiny_update", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
   }, [refreshDocs]);
 
   const updateDocs = (newDocs: Document[]) => {
