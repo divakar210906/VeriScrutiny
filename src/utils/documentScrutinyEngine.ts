@@ -12,6 +12,11 @@ export interface DocumentScrutinyResult {
   recommendation: SystemRecommendation;
   recommendationReason: string;
   suggestedOfficerRemark: string;
+  tamperingScore?: number;
+  sealDetected?: boolean;
+  signatureDetected?: boolean;
+  forensicFlags?: string[];
+  meta?: any;
   summary: {
     total: number;
     passed: number;
