@@ -73,6 +73,7 @@ export interface DocumentDetails {
     officerDecision?: DocumentStatus;
     officerRemarks?: string;
   };
+  meta?: any;
 }
 
 export interface Document {

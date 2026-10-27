@@ -4,7 +4,7 @@ import type { FormEvent, ChangeEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useDocuments } from "../hooks/useDocuments";
 import { institution } from "../mockData";
-import { runScrutinyEngine } from "../utils/ruleEngine";
+import { submitDocument } from "../utils/api";
 import { saveFileUrl } from "../utils/storage";
 import type { Document, DocumentDetails } from "../types";
 import { 
@@ -56,7 +56,7 @@ export default function SubmitDocumentPage() {
     }
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!form.declarationConfirmed) {
@@ -66,7 +66,7 @@ export default function SubmitDocumentPage() {
 
     const docIndex = docs.length + 1;
     const newId = `doc-${docIndex}`;
-    const fileName = form.file ? form.file.name : `${form.name.replace(/\s+/g, "_")}.pdf`;
+    const fileName = form.file ? form.file.name : `${form.name.replace(/\\s+/g, "_")}.pdf`;
     const fileSize = form.file ? `${(form.file.size / (1024 * 1024)).toFixed(1)} MB` : "1.8 MB";
 
     const details: DocumentDetails = {
@@ -87,48 +87,39 @@ export default function SubmitDocumentPage() {
       status: "Under Scrutiny",
     };
 
-    // Run rule engine
-    const engineResult = runScrutinyEngine(details);
-
-    const fullDetails: DocumentDetails = {
-      ...details,
-      status: engineResult.status,
-      scrutinySummary: {
+    try {
+      const response = await submitDocument(details, form.file);
+      const fullDetails: DocumentDetails = {
+        ...details,
+        status: response.status,
+        scrutinySummary: response.scrutinySummary,
+        meta: response.meta,
+      };
+      const newDocument: Document = {
+        id: newId,
+        name: form.name.trim(),
+        category: form.category,
+        academicYear: form.academicYear,
+        documentNumber: form.documentNumber.trim(),
+        issuingAuthority: form.issuingAuthority.trim(),
+        issueDate: details.issueDate,
+        expiryDate: details.expiryDate,
+        submissionDate: details.submissionDate,
+        status: response.status,
         lastScrutinized: new Date().toISOString(),
-        scrutinizedBy: "Central Institutional Scrutiny Cell (CISC-TN)",
-        status: engineResult.status,
-        reason: engineResult.reason,
-        totalChecks: engineResult.summary.total,
-        passed: engineResult.summary.passed,
-        warnings: engineResult.summary.warnings,
-        failed: engineResult.summary.failed,
-      },
-    };
-
-    const newDocument: Document = {
-      id: newId,
-      name: form.name.trim(),
-      category: form.category,
-      academicYear: form.academicYear,
-      documentNumber: form.documentNumber.trim(),
-      issuingAuthority: form.issuingAuthority.trim(),
-      issueDate: details.issueDate,
-      expiryDate: details.expiryDate,
-      submissionDate: details.submissionDate,
-      status: engineResult.status,
-      lastScrutinized: new Date().toISOString(),
-      details: fullDetails,
-      checklist: engineResult.checklist,
-    };
-
-    // Save preview URL if file provided
-    if (form.file) {
-      const url = URL.createObjectURL(form.file);
-      saveFileUrl(newId, url);
+        details: fullDetails,
+        checklist: response.checklist,
+      };
+      if (form.file) {
+        const url = URL.createObjectURL(form.file);
+        saveFileUrl(newId, url);
+      }
+      setDocs([newDocument, ...docs]);
+      setCreatedDocId(newId);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit document for scrutiny. Please try again.");
     }
-
-    setDocs([newDocument, ...docs]);
-    setCreatedDocId(newId);
   };
 
   if (createdDocId) {
