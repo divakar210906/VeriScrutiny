@@ -1,228 +1,290 @@
+import re
+from datetime import date, datetime
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    cleaned = re.sub(r"(?<=\d)(st|nd|rd|th)\b", "", value.strip(), flags=re.IGNORECASE)
+    for date_format in (
+        "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y", "%m-%d-%Y",
+        "%Y-%m-%d", "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y",
+    ):
+        try:
+            parsed = datetime.strptime(cleaned, date_format).date()
+            if parsed.year < 100:
+                return parsed.replace(year=parsed.year + (2000 if parsed.year < 50 else 1900))
+            return parsed
+        except ValueError:
+            continue
+    return None
+
+
+def _normalize(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def _normalize_academic_year(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = re.sub(r"\s+", "", value).replace("\u2013", "-").replace("/", "-")
+    match = re.fullmatch(r"(20\d{2})-(20\d{2}|\d{2})", normalized)
+    if not match:
+        return normalized
+    start_year, end_year = match.groups()
+    if len(end_year) == 2:
+        end_year = f"{start_year[:2]}{end_year}"
+    return f"{start_year}-{end_year}"
+
+
 def evaluate_aicte_compliance(
     entities: dict,
     vision: dict,
     forensics: dict,
     institution_context: dict,
-    doc_name: str
+    doc_name: str,
+    *,
+    text_extraction: str = "TEXT FOUND",
+    expected_document_number: str = "",
+    expected_issuing_authority: str = "",
+    expected_issue_date: str = "",
+    expected_expiry_date: str = "",
+    expected_academic_year: str = "",
+    text_truncated: bool = False,
+    ai_analysis: dict | None = None,
+    additional_findings: list[dict[str, str]] | None = None,
 ) -> dict:
-    """
-    Evaluates statutory norms according to AICTE Approval Process Handbook (APH).
-    Integrates vision analysis (seal/signature) and ELA forensic tampering results.
-    """
-    checklist = []
+    """Run evidence-based checks; this produces review guidance, not a decision."""
     extracted_fields = []
-    
-    inst_name = institution_context.get("name", "Kongu Engineering College")
-    tampering_score = forensics.get("tampering_score", 0.0)
-    seal_detected = vision.get("seal_detected", False)
-    signature_detected = vision.get("signature_detected", False)
+    checklist = []
 
-    # 1. Populate Extracted Fields
-    extracted_fields.append({
-        "field": "Institution Name",
-        "value": inst_name if entities["institution_verification"] == "MATCHED" else "Extracted mismatch",
-        "verification": entities["institution_verification"]
-    })
-    extracted_fields.append({
-        "field": "Certificate Serial No.",
-        "value": entities.get("document_number") or "DETECTED VIA SCAN",
-        "verification": "FOUND" if entities.get("document_number") else "NOT FOUND"
-    })
-    extracted_fields.append({
-        "field": "Issuing Authority",
-        "value": entities.get("issuing_authority") or "Competent State Authority",
-        "verification": "FOUND" if entities.get("issuing_authority") else "REVIEW REQUIRED"
-    })
-    extracted_fields.append({
-        "field": "Issue Date",
-        "value": entities.get("issue_date") or "Valid Current Cycle",
-        "verification": "FOUND" if entities.get("issue_date") else "REVIEW REQUIRED"
-    })
-    extracted_fields.append({
-        "field": "Official Seal / Stamp",
-        "value": "Statutory Department Seal Verified" if seal_detected else "Seal Missing / Low Contrast",
-        "verification": "MATCHED" if seal_detected else "REVIEW REQUIRED"
-    })
-    extracted_fields.append({
-        "field": "Signatory Verification",
-        "value": "Officer Digital / Wet Signature Found" if signature_detected else "Signature Stroke Unverified",
-        "verification": "MATCHED" if signature_detected else "REVIEW REQUIRED"
-    })
-    extracted_fields.append({
-        "field": "Forensic Integrity (ELA)",
-        "value": f"{100.0 - tampering_score:.1f}% Authentic ({'Clean Scan' if tampering_score < 25 else 'Tampering Risk Detected'})",
-        "verification": "MATCHED" if tampering_score < 25 else "REVIEW REQUIRED"
-    })
+    def add_finding(field: str, value: str, verification: str, details: str) -> None:
+        extracted_fields.append({"field": field, "value": value or "Not found in available text", "verification": verification})
+        result = "PASS" if verification in {"FOUND", "MATCHED"} else "FAIL" if verification == "MISMATCH" else "WARNING"
+        checklist.append({
+            "id": f"CHECK-{len(checklist) + 1:02}",
+            "order": len(checklist) + 1,
+            "parameter": field,
+            "requirement": "Evidence check only; confirm against the applicable authoritative requirement.",
+            "extractedValue": value or "Not found in available text",
+            "result": result,
+            "remarks": details,
+        })
 
-    # 2. Build 10-Parameter Statutory Checklist (AICTE APH 2024-2027 Norms)
-    order = 1
-    
-    # Check 1: Institution Name Match
-    checklist.append({
-        "id": "AICTE-01",
-        "order": order,
-        "parameter": "Institutional Name Alignment",
-        "requirement": "Must correspond verbatim with AICTE Permanent Registry master data",
-        "extractedValue": inst_name,
-        "result": "PASS" if entities["institution_verification"] == "MATCHED" else "FAIL",
-        "remarks": "Institutional identity confirmed in AICTE master records." if entities["institution_verification"] == "MATCHED" else "Name does not align with regulatory records.",
-        "confidenceScore": 0.98 if entities["institution_verification"] == "MATCHED" else 0.40
-    })
-    order += 1
-
-    # Check 2: Issuing Authority Competence
-    auth_valid = entities.get("issuing_authority") is not None
-    checklist.append({
-        "id": "AICTE-02",
-        "order": order,
-        "parameter": "Competent Issuing Authority",
-        "requirement": "Statutory body authorized under State/Central Education & Municipal directives",
-        "extractedValue": entities.get("issuing_authority") or "State Directorate / Revenue Agency",
-        "result": "PASS" if auth_valid else "WARNING",
-        "remarks": "Recognized regulatory authority confirmed." if auth_valid else "Authority requires officer corroboration against state gazette.",
-        "confidenceScore": 0.95 if auth_valid else 0.65
-    })
-    order += 1
-
-    # Check 3: Document Serial Number Registration
-    has_num = bool(entities.get("document_number"))
-    checklist.append({
-        "id": "AICTE-03",
-        "order": order,
-        "parameter": "Certificate / Order Number Present",
-        "requirement": "Valid alphanumeric dispatch/order number for departmental verification",
-        "extractedValue": entities.get("document_number") or "Auto-parsed Reference",
-        "result": "PASS" if has_num else "WARNING",
-        "remarks": "Unique statutory certificate serial number parsed successfully." if has_num else "No clear serial number pattern resolved in scan.",
-        "confidenceScore": 0.94 if has_num else 0.50
-    })
-    order += 1
-
-    # Check 4: Statutory Department Rubber Seal / Stamp
-    checklist.append({
-        "id": "AICTE-04",
-        "order": order,
-        "parameter": "Official Departmental Seal Detection",
-        "requirement": "Colored departmental ink stamp / state emblem impression verified via CV",
-        "extractedValue": "Verified Seal" if seal_detected else "Seal Missing or Unresolved",
-        "result": "PASS" if seal_detected else "WARNING",
-        "remarks": f"Computer vision confirmed official seal (confidence {int(vision.get('seal_confidence', 0)*100)}%)." if seal_detected else "Official colored seal not detected in scanned layout.",
-        "confidenceScore": vision.get("seal_confidence", 0.60)
-    })
-    order += 1
-
-    # Check 5: Authorized Officer Signature
-    checklist.append({
-        "id": "AICTE-05",
-        "order": order,
-        "parameter": "Issuing Officer Signature",
-        "requirement": "Handwritten pen stroke or verifiable DSC digital token present in footer",
-        "extractedValue": "Signature Present" if signature_detected else "Signature Stroke Unresolved",
-        "result": "PASS" if signature_detected else "WARNING",
-        "remarks": f"Valid signature contour isolated in lower quadrant (confidence {int(vision.get('signature_confidence', 0)*100)}%)." if signature_detected else "Officer signature requires visual confirmation.",
-        "confidenceScore": vision.get("signature_confidence", 0.60)
-    })
-    order += 1
-
-    # Check 6: Document Tampering & Splicing Forensics (ELA)
-    is_clean = tampering_score < 30.0
-    checklist.append({
-        "id": "AICTE-06",
-        "order": order,
-        "parameter": "Digital Integrity & Anti-Forgery (ELA)",
-        "requirement": "Error Level Analysis variance below 30% threshold with no digital overlays",
-        "extractedValue": f"{tampering_score:.1f}% Anomaly Score",
-        "result": "PASS" if is_clean else ("WARNING" if tampering_score < 60 else "FAIL"),
-        "remarks": "Clean scan with consistent error level distribution across all quadrants." if is_clean else f"Potential digital editing or spliced layers detected ({tampering_score:.1f}% risk).",
-        "confidenceScore": 0.92
-    })
-    order += 1
-
-    # Check 7: Validity Window / Academic Year Compliance
-    checklist.append({
-        "id": "AICTE-07",
-        "order": order,
-        "parameter": "Regulatory Period Validity",
-        "requirement": "Approval valid for academic cycle 2026-2027 under APH Chapter II",
-        "extractedValue": entities.get("expiry_date") or "Valid for current cycle",
-        "result": "PASS",
-        "remarks": "Document date is within active regulatory operating window.",
-        "confidenceScore": 0.88
-    })
-    order += 1
-
-    # Check 8: Land / Campus Survey Alignment
-    checklist.append({
-        "id": "AICTE-08",
-        "order": order,
-        "parameter": "Campus Geolocation Alignment",
-        "requirement": "Revenue district matches registered campus location",
-        "extractedValue": "Erode, Tamil Nadu",
-        "result": "PASS" if entities["address_verification"] == "MATCHED" else "WARNING",
-        "remarks": "District jurisdiction matches registered institutional address.",
-        "confidenceScore": 0.90
-    })
-    order += 1
-
-    # Check 9: PDF Metadata Authenticity
-    suspicious_meta = forensics.get("suspicious_metadata", [])
-    checklist.append({
-        "id": "AICTE-09",
-        "order": order,
-        "parameter": "PDF Metadata & Generator Provenance",
-        "requirement": "Non-manipulated authoring headers without third-party design tool signatures",
-        "extractedValue": "Standard Scanner / Govt Dispatch" if not suspicious_meta else "Editing tool metadata flagged",
-        "result": "PASS" if not suspicious_meta else "WARNING",
-        "remarks": "Document metadata contains standard archival tags." if not suspicious_meta else f"Metadata flag: {suspicious_meta[0]}",
-        "confidenceScore": 0.96
-    })
-    order += 1
-
-    # Check 10: Mandatory AICTE Approval Clause
-    checklist.append({
-        "id": "AICTE-10",
-        "order": order,
-        "parameter": "Mandatory Statutory Declarations",
-        "requirement": "Contains standard statutory undertaking clauses under AICTE regulations",
-        "extractedValue": "Statutory terms compliant",
-        "result": "PASS",
-        "remarks": "Mandatory legal undertakings are present and undamaged.",
-        "confidenceScore": 0.89
-    })
-
-    # Summary counts
-    passed = sum(1 for c in checklist if c["result"] == "PASS")
-    warnings = sum(1 for c in checklist if c["result"] == "WARNING")
-    failed = sum(1 for c in checklist if c["result"] == "FAIL")
-
-    # Final Recommendation
-    if failed > 0 or tampering_score >= 60.0:
-        recommendation = "DEFICIENCY DETECTED"
-        recommendation_reason = "Critical regulatory non-compliance or significant digital tampering detected."
-        officer_remark = "DEFICIENCY NOTICE: Discrepancies identified in statutory norms. Re-submission or physically verified copy required."
-    elif warnings > 2 or tampering_score >= 30.0:
-        recommendation = "NEEDS CLARIFICATION"
-        recommendation_reason = "Document passed primary criteria but has forensic warnings or missing seal/signature clarity."
-        officer_remark = "RECOMMENDED FOR VERIFICATION: Scrutiny Officer manual sign-off required for flagged forensic warnings."
+    text_available = text_extraction in {"TEXT FOUND", "OCR TEXT FOUND", "TEXT + OCR FOUND"}
+    detected_category = entities.get("category")
+    expected_category = entities.get("expected_category")
+    if not text_available:
+        add_finding(
+            "Readable document text",
+            text_extraction,
+            "REVIEW REQUIRED",
+            "OCR did not produce readable text. Visual heuristics cannot verify text fields; review the source manually.",
+        )
     else:
-        recommendation = "VERIFICATION PASSED"
-        recommendation_reason = "All 10 AICTE statutory parameters, computer vision seal/signature checks, and ELA integrity tests cleared."
-        officer_remark = "STATUTORY CLEARANCE RECOMMENDED: Document satisfies all AICTE Approval Process Handbook (APH) requirements."
+        if text_truncated:
+            add_finding(
+                "Text extraction coverage",
+                "Text truncated at the configured processing limit",
+                "REVIEW REQUIRED",
+                "Some document text was omitted from analysis. Review the complete source manually.",
+            )
+        if detected_category and expected_category:
+            category_status = "MATCHED" if detected_category == expected_category else "MISMATCH"
+            category_details = (
+                "Text keywords are consistent with the submitted document category."
+                if category_status == "MATCHED"
+                else f"Text keywords suggest {detected_category}, while the submitted type is categorized as {expected_category}."
+            )
+        else:
+            category_status = "REVIEW REQUIRED"
+            category_details = "Document type could not be classified reliably from the available text."
+        add_finding("Document type", detected_category or "Not identified", category_status, category_details)
+
+        academic_year = entities.get("academic_year")
+        if academic_year or expected_academic_year:
+            if not academic_year:
+                academic_year_status = "REVIEW REQUIRED"
+                academic_year_details = "An academic year was submitted but could not be found in the document text."
+            elif expected_academic_year and _normalize_academic_year(academic_year) != _normalize_academic_year(expected_academic_year):
+                academic_year_status = "MISMATCH"
+                academic_year_details = "The academic year found in the document differs from the submitted application year."
+            elif expected_academic_year:
+                academic_year_status = "MATCHED"
+                academic_year_details = "The academic year found in the document matches the submitted application year."
+            else:
+                academic_year_status = "FOUND"
+                academic_year_details = "An academic year was found; no submitted application year was available for comparison."
+            add_finding("Application academic year", academic_year, academic_year_status, academic_year_details)
+
+        add_finding(
+            "Institution name",
+            entities.get("institution_evidence") or "Not found in available text",
+            entities.get("institution_verification", "REVIEW REQUIRED"),
+            "Institution name tokens were compared with the extracted text. This does not verify identity against an external registry.",
+        )
+
+        document_number = entities.get("document_number")
+        number_status = "FOUND" if document_number else "NOT FOUND"
+        number_details = "A reference-number pattern was found in the document text." if document_number else "No reference-number pattern was found in the document text."
+        if document_number and expected_document_number:
+            if _normalize(document_number) != _normalize(expected_document_number):
+                number_status = "MISMATCH"
+                number_details = "The number extracted from the file differs from the number entered at submission."
+            else:
+                number_status = "MATCHED"
+                number_details = "The extracted number matches the number entered at submission."
+        elif not document_number and expected_document_number:
+            number_status = "REVIEW REQUIRED"
+            number_details = "A number was entered at submission, but it could not be confirmed in the document text."
+        add_finding("Document reference number", document_number or expected_document_number, number_status, number_details)
+
+        authority = entities.get("issuing_authority")
+        authority_status = "FOUND" if authority else "NOT FOUND"
+        authority_details = "Authority-related keywords were found; authority authorization is not externally verified." if authority else "No recognized authority keywords were found."
+        if expected_issuing_authority and authority:
+            if _normalize(authority) in _normalize(expected_issuing_authority):
+                authority_status = "MATCHED"
+                authority_details = "The detected authority category is consistent with the submitted authority text; authorization is not externally verified."
+            else:
+                authority_status = "REVIEW REQUIRED"
+                authority_details = "The extracted authority category differs from the submitted authority description; confirm manually."
+        elif expected_issuing_authority:
+            authority_details = "An authority was entered at submission but could not be identified in the document text."
+            authority_status = "REVIEW REQUIRED"
+        add_finding("Issuing authority", authority or expected_issuing_authority, authority_status, authority_details)
+
+        issue_date = entities.get("issue_date")
+        issue_status = "FOUND" if issue_date else "NOT FOUND"
+        issue_value = _parse_date(issue_date)
+        if issue_date and not issue_value:
+            issue_status = "REVIEW REQUIRED"
+        elif issue_value and issue_value > date.today():
+            issue_status = "MISMATCH"
+        if expected_issue_date and issue_value:
+            expected_date = _parse_date(expected_issue_date)
+            if expected_date and expected_date != issue_value:
+                issue_status = "MISMATCH"
+            elif expected_date and issue_status != "MISMATCH":
+                issue_status = "MATCHED"
+        add_finding(
+            "Issue date",
+            issue_date or expected_issue_date,
+            issue_status,
+            "Date parsed from document text; compare with the original and applicable filing requirements."
+            if issue_date else "No issue date was found in the document text.",
+        )
+
+        expiry_date = entities.get("expiry_date")
+        expiry_value = _parse_date(expiry_date)
+        expiry_status = "FOUND" if expiry_date else "NOT FOUND"
+        expiry_details = "Validity date found; applicability and required validity period need officer confirmation."
+        if expiry_date and not expiry_value:
+            expiry_status = "REVIEW REQUIRED"
+        elif expiry_value and expiry_value < date.today():
+            expiry_status = "MISMATCH"
+            expiry_details = "The parsed validity date is in the past; confirm the date and applicable requirements."
+        if expected_expiry_date and expiry_value:
+            expected_date = _parse_date(expected_expiry_date)
+            if expected_date and expected_date != expiry_value:
+                expiry_status = "MISMATCH"
+                expiry_details = "The validity date in the file differs from the date entered at submission."
+            elif expected_date and expiry_status != "MISMATCH":
+                expiry_status = "MATCHED"
+        elif not expiry_date and expected_expiry_date:
+            expiry_status = "REVIEW REQUIRED"
+            expiry_details = "A validity date was entered at submission but could not be confirmed in the document text."
+        add_finding("Validity / expiry date", expiry_date or expected_expiry_date, expiry_status, expiry_details)
+
+        address_status = "FOUND" if entities.get("address_verification") == "MATCHED" else "REVIEW REQUIRED"
+        add_finding(
+            "Location reference",
+            "Location keyword found" if address_status == "FOUND" else "Not confirmed",
+            address_status,
+            "A location keyword was found; no address registry comparison is available."
+            if address_status == "FOUND" else "No registered address context or matching location was available for comparison.",
+        )
+
+    for label, key in (("Visible seal/stamp", "seal_detected"), ("Visible signature-like mark", "signature_detected")):
+        detected = bool(vision.get(key))
+        add_finding(
+            label,
+            "Visual mark detected" if detected else "No visual mark detected",
+            "FOUND" if detected else "REVIEW REQUIRED",
+            "A basic computer-vision heuristic detected a visual mark; this is not authentication."
+            if detected else "The heuristic did not detect a mark. Confirm visually; absence may reflect scan quality or layout.",
+        )
+
+    tampering_score = float(forensics.get("tampering_score", 0.0))
+    forensic_flags = forensics.get("flags", [])
+    ela_applicable = forensics.get("ela_applicable", True)
+    add_finding(
+        "Image-compression anomaly indicator",
+        f"Heuristic score {tampering_score:.1f}/100" if ela_applicable else "Not analyzed for this file format",
+        "REVIEW REQUIRED" if not ela_applicable or tampering_score >= 30 or forensic_flags else "FOUND",
+        "ELA is an image-compression heuristic. A flag is not proof of editing; an unflagged image is not proof of authenticity."
+        + (f" ELA was not run because {forensics.get('ela_not_applicable_reason', 'the source format is not supported')}." if not ela_applicable else "")
+        + (f" Indicators: {'; '.join(forensic_flags)}" if forensic_flags else ""),
+    )
+    metadata_flags = forensics.get("suspicious_metadata", [])
+    add_finding(
+        "PDF metadata",
+        "Metadata indicator present" if metadata_flags else "No listed editor indicator found",
+        "REVIEW REQUIRED" if metadata_flags else "FOUND",
+        "Metadata can be changed or absent and cannot establish authenticity."
+        + (f" Indicators: {'; '.join(metadata_flags)}" if metadata_flags else ""),
+    )
+
+    if ai_analysis:
+        ai_status = (
+            "MATCHED"
+            if ai_analysis.get("status") == "complete"
+            and ai_analysis.get("expectedCategoryMatch") is True
+            else "REVIEW REQUIRED"
+        )
+        ai_value = ai_analysis.get("predictedDocumentType") or ai_analysis.get("message", "AI analysis unavailable")
+        ai_details = ai_analysis.get("message", "Semantic document understanding was not available.")
+        if ai_analysis.get("status") == "complete":
+            ai_details = (
+                f"The {ai_analysis.get('model')} model ranked this label by semantic similarity "
+                f"(score {ai_analysis.get('similarity')}). Similarity is not a calibrated probability. "
+                f"{ai_details}"
+            )
+        add_finding("AI document-type understanding", ai_value, ai_status, ai_details)
+
+    for item in additional_findings or []:
+        add_finding(
+            item["field"],
+            item["value"],
+            item["verification"],
+            item["details"],
+        )
+
+    passed = sum(item["result"] == "PASS" for item in checklist)
+    warnings = sum(item["result"] == "WARNING" for item in checklist)
+    failed = sum(item["result"] == "FAIL" for item in checklist)
+    if failed:
+        recommendation = "DEFICIENCY DETECTED"
+        recommendation_reason = "One or more submitted values conflict with evidence in the document. Confirm the discrepancy before making an officer decision."
+    elif warnings:
+        recommendation = "NEEDS CLARIFICATION"
+        recommendation_reason = "Some requested evidence could not be extracted or needs manual confirmation. This is not an approval or authenticity determination."
+    else:
+        recommendation = "NO ISSUES DETECTED"
+        recommendation_reason = "No issues were identified by the available checks. This is not an approval or authenticity determination; officer review remains required."
 
     return {
         "extractedFields": extracted_fields,
+        "findings": extracted_fields,
         "checklist": checklist,
         "recommendation": recommendation,
         "recommendationReason": recommendation_reason,
-        "suggestedOfficerRemark": officer_remark,
+        "suggestedOfficerRemark": "",
         "tamperingScore": tampering_score,
-        "sealDetected": seal_detected,
-        "signatureDetected": signature_detected,
-        "forensicFlags": forensics.get("flags", []),
-        "summary": {
-            "total": len(checklist),
-            "passed": passed,
-            "warnings": warnings,
-            "failed": failed
-        }
+        "sealDetected": bool(vision.get("seal_detected")),
+        "signatureDetected": bool(vision.get("signature_detected")),
+        "forensicFlags": forensic_flags,
+        "summary": {"total": len(checklist), "passed": passed, "warnings": warnings, "failed": failed},
+        "meta": {"documentType": doc_name, "textExtraction": text_extraction},
     }

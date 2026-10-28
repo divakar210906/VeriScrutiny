@@ -1,263 +1,249 @@
-// src/pages/LoginPage.tsx
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import type { UserRole } from "../types";
-import { 
-  ShieldCheck, 
-  Lock, 
-  Building2, 
-  RotateCw, 
-  AlertCircle 
-} from "lucide-react";
+
+const demoAccounts: Record<UserRole, { id: string; label: string }> = {
+  institution: { id: "KEC001", label: "Kongu Engineering College · KEC001" },
+  aicte: { id: "AICTE-SR-9042", label: "AICTE Officer · Southern Region" },
+};
+
+function getPortalFromQuery(value: string | null): UserRole | null {
+  return value === "aicte" || value === "institution" ? value : null;
+}
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, userRole } = useAuth();
   const navigate = useNavigate();
-
-  const [role, setRole] = useState<UserRole>("institution");
-  const [identifier, setIdentifier] = useState("KEC001");
-  const [password, setPassword] = useState("demo123");
-  const [captchaInput, setCaptchaInput] = useState("7X8K");
-  const [captchaCode, setCaptchaCode] = useState("7X8K");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [role, setRole] = useState<UserRole | null>(() => getPortalFromQuery(searchParams.get("portal")));
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const refreshCaptcha = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 4; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setCaptchaCode(code);
-    setCaptchaInput(code);
-  };
+  if (isAuthenticated) {
+    return <Navigate to={userRole === "aicte" ? "/aicte/dashboard" : "/institution/dashboard"} replace />;
+  }
 
-  const handleRoleSelect = (selectedRole: UserRole) => {
+  const choosePortal = (selectedRole: UserRole) => {
     setRole(selectedRole);
-    if (selectedRole === "institution") {
-      setIdentifier("KEC001");
-      setPassword("demo123");
-    } else {
-      setIdentifier("AICTE-SR-9042");
-      setPassword("demo123");
-    }
     setError("");
+    setSearchParams({ portal: selectedRole }, { replace: true });
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const returnToPortalSelection = () => {
+    setRole(null);
+    setIdentifier("");
+    setPassword("");
     setError("");
+    setSearchParams({}, { replace: true });
+  };
 
-    if (captchaInput.trim().toUpperCase() !== captchaCode) {
-      setError("Security captcha code does not match. Please verify.");
-      return;
-    }
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!role || isSubmitting) return;
 
-    const success = login(role, identifier.trim(), password);
-    if (success) {
-      if (role === "institution") {
-        navigate("/institution/dashboard");
+    setError("");
+    setIsSubmitting(true);
+    window.setTimeout(() => {
+      const result = login(role, identifier, password);
+      setIsSubmitting(false);
+
+      if (result === "success") {
+        navigate(role === "aicte" ? "/aicte/dashboard" : "/institution/dashboard", { replace: true });
+      } else if (result === "session_unavailable") {
+        setError("This browser could not save your demonstration session. Enable site storage and try again.");
       } else {
-        navigate("/aicte/dashboard");
+        setError("The ID or password is not correct for this portal. Check your details and try again.");
       }
-    } else {
-      setError("Invalid authentication credentials. Please check ID and Password.");
-    }
+    }, 250);
   };
+
+  const fillDemoCredentials = () => {
+    if (!role) return;
+    setIdentifier(demoAccounts[role].id);
+    setPassword("demo123");
+    setError("");
+  };
+
+  const isOfficerPortal = role === "aicte";
 
   return (
-    <div className="min-h-screen bg-[#f4f6f9] flex flex-col justify-between font-sans">
-      {/* Top Header */}
-      <header className="bg-[#0b2545] text-white border-b-2 border-amber-500 shadow-md">
-        <div className="h-1 bg-gradient-to-r from-amber-500 via-white to-emerald-600"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded border border-amber-400 bg-[#071a30] flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-amber-400" />
-            </div>
-            <div>
-              <h1 className="font-serif font-black text-xl tracking-wider text-white uppercase">
-                VERISCRUTINY
-              </h1>
-              <p className="text-xs text-slate-300 font-medium">
-                Institutional Document Scrutiny System
-              </p>
-            </div>
-          </div>
-          <div className="text-right hidden sm:block">
-            <span className="text-xs text-amber-300 font-semibold block">Approval Cycle 2026–27</span>
-            <span className="text-[11px] text-slate-300">Standing Scrutiny Directorate</span>
+    <div className="login-page">
+      <div className="login-utility">
+        <div className="login-utility-inner">
+          <span>VeriScrutiny · application scrutiny workspace</span>
+          <span>Demonstration service · not an official AICTE portal</span>
+        </div>
+      </div>
+
+      <header className="login-header">
+        <div className="login-header-inner">
+          <Link to="/login" className="login-brand">
+            <span className="login-brand-mark" aria-hidden="true">
+              <ShieldCheck />
+            </span>
+            <span>
+              <strong>VeriScrutiny</strong>
+              <small>Institutional application scrutiny</small>
+            </span>
+          </Link>
+          <div className="login-header-cycle">
+            <strong>Approval year 2026–27</strong>
+            Two separate portal experiences
           </div>
         </div>
       </header>
 
-      {/* Main Form */}
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 my-4">
-        <div className="w-full max-w-md bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
-          
-          {/* Formal Header Banner */}
-          <div className="bg-[#0b2545] text-white px-6 pt-5 pb-4 border-b border-slate-700">
-            <div className="text-center space-y-1">
-              <h2 className="text-base font-bold uppercase tracking-wider text-amber-400">
-                VERISCRUTINY
-              </h2>
-              <p className="text-xs text-slate-200 font-medium">
-                Institutional Document Scrutiny System
+      <main className="login-sky">
+        <div className="login-content">
+          <section className="login-intro" aria-labelledby="login-intro-title">
+            <span className="login-intro-kicker">Application and document scrutiny</span>
+            <h1 id="login-intro-title">A clear record from submission to officer decision.</h1>
+            <p>
+              Institutions submit supporting documents. Officers review the application,
+              inspect evidence, and record the final decision. VeriScrutiny provides advisory findings.
+            </p>
+            <ol className="login-workflow" aria-label="Scrutiny workflow">
+              {[
+                "Institution prepares the application and required documents",
+                "Documents are submitted for scrutiny",
+                "Officer reviews evidence and advisory findings",
+                "Authorised officer records the final decision",
+              ].map((step, index) => (
+                <li key={step}>
+                  <span className="login-workflow-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="login-card" aria-labelledby="login-card-title">
+            <div className="login-card-header">
+              <span className="login-card-eyebrow">{role ? (isOfficerPortal ? "AICTE officer access" : "Institution access") : "Portal access"}</span>
+              <h2 id="login-card-title">{role ? "Sign in to VeriScrutiny" : "Select your portal"}</h2>
+              <p className="login-card-description">
+                {role
+                  ? `Enter the ${isOfficerPortal ? "officer" : "institution"} credentials for this demonstration.`
+                  : "Continue to the workspace associated with your role."}
               </p>
             </div>
 
-            {/* Formal Tab Buttons */}
-            <div className="grid grid-cols-2 gap-1.5 mt-4 bg-[#071a30] p-1 rounded border border-slate-700">
-              <button
-                type="button"
-                onClick={() => handleRoleSelect("institution")}
-                className={`py-2 px-3 rounded text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  role === "institution"
-                    ? "bg-white text-[#0b2545] shadow-xs"
-                    : "text-slate-300 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5 text-amber-500" />
-                <span>Institution Login</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleSelect("aicte")}
-                className={`py-2 px-3 rounded text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  role === "aicte"
-                    ? "bg-white text-[#0b2545] shadow-xs"
-                    : "text-slate-300 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                <span>AICTE Officer Login</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Form Body */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
-            {error && (
-              <div className="p-3 bg-rose-50 border-l-4 border-rose-600 text-rose-800 text-xs rounded flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                <span>{error}</span>
+            {!role ? (
+              <div className="login-role-list" aria-label="Choose a portal">
+                <button type="button" className="login-role-option" onClick={() => choosePortal("institution")}>
+                  <span className="login-role-option-icon" aria-hidden="true"><Building2 /></span>
+                  <span className="login-role-option-copy">
+                    <strong>Institution Portal</strong>
+                    <small>Application, required documents and submissions</small>
+                  </span>
+                  <ArrowRight aria-hidden="true" />
+                </button>
+                <button type="button" className="login-role-option" onClick={() => choosePortal("aicte")}>
+                  <span className="login-role-option-icon" aria-hidden="true"><ShieldCheck /></span>
+                  <span className="login-role-option-copy">
+                    <strong>AICTE Scrutiny Officer Portal</strong>
+                    <small>Application queue, evidence review and decisions</small>
+                  </span>
+                  <ArrowRight aria-hidden="true" />
+                </button>
               </div>
+            ) : (
+              <>
+                <form onSubmit={handleSubmit} className="login-form">
+                  {error && (
+                    <div className="login-error" role="alert">
+                      <AlertCircle className="mr-2 inline h-4 w-4 align-text-bottom" aria-hidden="true" />
+                      {error}
+                    </div>
+                  )}
+                  <div>
+                    <label htmlFor="account-id">{isOfficerPortal ? "Officer ID" : "Institution ID"}</label>
+                    <input
+                      id="account-id"
+                      name="username"
+                      autoComplete="username"
+                      value={identifier}
+                      onChange={(event) => {
+                        setIdentifier(event.target.value);
+                        setError("");
+                      }}
+                      placeholder={isOfficerPortal ? "Enter officer ID" : "Enter institution ID"}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="account-password">Password</label>
+                    <div className="login-password-wrap">
+                      <input
+                        id="account-password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(event) => {
+                          setPassword(event.target.value);
+                          setError("");
+                        }}
+                        placeholder="Enter password"
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="login-password-toggle"
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                      </button>
+                    </div>
+                  </div>
+                  <button type="submit" className="login-submit" disabled={isSubmitting}>
+                    <LockKeyhole aria-hidden="true" />
+                    {isSubmitting ? "Signing in…" : `Sign in to ${isOfficerPortal ? "Officer Portal" : "Institution Portal"}`}
+                  </button>
+                  <button type="button" className="login-back" onClick={returnToPortalSelection}>
+                    <ArrowLeft aria-hidden="true" />
+                    Choose a different portal
+                  </button>
+                </form>
+
+                <details className="login-demo-details">
+                  <summary>Demonstration credentials</summary>
+                  <p>{demoAccounts[role].label}</p>
+                  <p>Password: <code>demo123</code></p>
+                  <button type="button" className="mt-2 font-semibold text-[#124d88] underline" onClick={fillDemoCredentials}>
+                    Fill demo credentials
+                  </button>
+                </details>
+              </>
             )}
 
-            {/* Identifier */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                {role === "institution" ? "AICTE Permanent ID" : "AICTE Officer ID"}
-                <span className="text-rose-600 ml-0.5">*</span>
-              </label>
-              <input
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder={role === "institution" ? "e.g. KEC001" : "e.g. AICTE-SR-9042"}
-                className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#134074] font-medium"
-                required
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Password <span className="text-rose-600">*</span>
-                </label>
-                <span className="text-[11px] text-slate-400">Default: demo123</span>
-              </div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#134074] font-medium"
-                required
-              />
-            </div>
-
-            {/* Security Captcha */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Security Verification Captcha <span className="text-rose-600">*</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="px-4 py-2 bg-slate-100 border border-slate-300 rounded font-mono font-black text-slate-800 tracking-widest text-sm select-none">
-                  {captchaCode}
-                </div>
-                <button
-                  type="button"
-                  onClick={refreshCaptcha}
-                  className="p-2 border border-slate-300 hover:bg-slate-100 rounded text-slate-600 transition"
-                  title="Generate new captcha code"
-                >
-                  <RotateCw className="w-4 h-4" />
-                </button>
-                <input
-                  type="text"
-                  value={captchaInput}
-                  onChange={(e) => setCaptchaInput(e.target.value)}
-                  placeholder="Enter captcha"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#134074] uppercase font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                className="w-full py-2.5 px-4 bg-[#0b2545] hover:bg-[#134074] text-white font-bold text-xs uppercase tracking-wider rounded shadow-sm transition flex items-center justify-center gap-2"
-              >
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Authenticate & Enter Portal</span>
-              </button>
-            </div>
-
-            {/* Subtle Demo Credentials Box */}
-            <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-              <div>
-                <span className="font-semibold text-slate-700">Demo Credentials:</span>{" "}
-                {role === "institution" ? (
-                  <span>ID: <code className="font-bold text-slate-800">KEC001</code> (Pass: demo123)</span>
-                ) : (
-                  <span>Officer ID: <code className="font-bold text-slate-800">AICTE-SR-9042</code> (Pass: demo123)</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (role === "institution") {
-                    setIdentifier("KEC001");
-                  } else {
-                    setIdentifier("AICTE-SR-9042");
-                  }
-                  setPassword("demo123");
-                  setError("");
-                }}
-                className="text-[#0056b3] hover:underline font-semibold"
-              >
-                Fill
-              </button>
-            </div>
-          </form>
+            <p className="login-prototype-note">
+              Demonstration only. Sign-in is stored in this browser and is not connected to an identity provider
+              or a live AICTE system.
+            </p>
+          </section>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1">
-          <div>
-            VeriScrutiny Institutional Document Verification & Scrutiny Assistance System
-          </div>
-          <div className="text-[11px] text-slate-400">
-            For demonstration & technical scrutiny workflows • AICTE Southern Region
-          </div>
-        </div>
+      <footer className="login-footer">
+        VeriScrutiny is a decision-support demonstration. Final scrutiny authority remains with the authorised officer.
       </footer>
     </div>
   );

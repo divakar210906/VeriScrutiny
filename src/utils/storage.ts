@@ -2,10 +2,22 @@
 import type { Document, ScrutinySettings, VerificationHistoryItem, DocumentStatus } from "../types";
 import { documents as initialDocuments, defaultSettings, verificationHistory as initialHistory } from "../mockData";
 
-export const STORAGE_KEY_DOCS = "veriscrutiny_documents_v2";
+export const STORAGE_KEY_DOCS = "veriscrutiny_documents_v3";
 export const STORAGE_KEY_SETTINGS = "veriscrutiny_settings_v2";
-export const STORAGE_KEY_HISTORY = "veriscrutiny_history_v2";
-export const FILE_URL_STORAGE_KEY = "veriscrutiny_document_files_v2";
+export const STORAGE_KEY_HISTORY = "veriscrutiny_history_v3";
+const FILE_DATABASE_NAME = "veriscrutiny-document-files";
+const FILE_STORE_NAME = "documents";
+
+function openDocumentFileDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(FILE_DATABASE_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(FILE_STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Unable to open document storage."));
+  });
+}
 
 export function loadDocuments(): Document[] {
   const stored = localStorage.getItem(STORAGE_KEY_DOCS);
@@ -29,7 +41,8 @@ export function saveDocuments(docs: Document[]): void {
 export function updateDocumentStatus(
   id: string,
   newStatus: DocumentStatus,
-  scrutinizerRemarks?: string
+  scrutinizerRemarks?: string,
+  officerId = "AICTE-SR-9042"
 ): Document[] {
   const currentDocs = loadDocuments();
   const updated = currentDocs.map((doc) => {
@@ -96,16 +109,16 @@ export function updateDocumentStatus(
 
     const newHistoryItem: VerificationHistoryItem = {
       id: "hist-" + Date.now(),
-      reportId: `SCR-2026-TN-KEC-${Math.floor(1000 + Math.random() * 9000)}`,
-      institutionId: "KEC001",
-      institutionName: "Kongu Engineering College",
-      applicationId: "APP-2026-00182",
+      reportId: `LOCAL-${Date.now()}`,
+      institutionId: targetDoc.details.institutionId || "KEC001",
+      institutionName: targetDoc.details.institution || "Institution",
+      applicationId: "DEMO-KEC-2026-01",
       documentId: targetDoc.id,
       documentName: targetDoc.name,
       documentNumber: targetDoc.documentNumber,
       category: targetDoc.category,
       scrutinyDate: nowFormatted,
-      scrutinizedBy: "AICTE-SR-9042",
+      scrutinizedBy: officerId,
       action: actionName,
       result: resultLabel,
       passedCount: targetDoc.checklist.filter((c) => c.result === "PASS").length,
@@ -160,13 +173,31 @@ export function saveSettings(settings: ScrutinySettings): void {
   localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
 }
 
-export function saveFileUrl(id: string, url: string): void {
-  const map = JSON.parse(localStorage.getItem(FILE_URL_STORAGE_KEY) ?? "{}") as Record<string, string>;
-  map[id] = url;
-  localStorage.setItem(FILE_URL_STORAGE_KEY, JSON.stringify(map));
+export async function saveDocumentFile(id: string, file: File): Promise<void> {
+  const database = await openDocumentFileDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(FILE_STORE_NAME, "readwrite");
+      transaction.objectStore(FILE_STORE_NAME).put(file, id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Unable to save the uploaded document."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Document storage transaction was aborted."));
+    });
+  } finally {
+    database.close();
+  }
 }
 
-export function loadFileUrl(id: string): string | undefined {
-  const map = JSON.parse(localStorage.getItem(FILE_URL_STORAGE_KEY) ?? "{}") as Record<string, string>;
-  return map[id];
+export async function loadDocumentFile(id: string): Promise<Blob | undefined> {
+  const database = await openDocumentFileDatabase();
+  try {
+    return await new Promise<Blob | undefined>((resolve, reject) => {
+      const transaction = database.transaction(FILE_STORE_NAME, "readonly");
+      const request = transaction.objectStore(FILE_STORE_NAME).get(id);
+      request.onsuccess = () => resolve(request.result as Blob | undefined);
+      request.onerror = () => reject(request.error ?? new Error("Unable to load the uploaded document."));
+    });
+  } finally {
+    database.close();
+  }
 }
