@@ -31,7 +31,7 @@ export default function InstitutionProfilePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 rounded border border-emerald-200">
-              Active Registered Institution
+              Demonstration institution
             </span>
             <span className="font-mono text-xs text-slate-500">
               Permanent ID: {formData.aictePermanentId}
@@ -46,7 +46,7 @@ export default function InstitutionProfilePage() {
         {isSaved && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded text-xs font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>Profile records updated successfully.</span>
+            <span>Preview updated. Changes are not persisted in this demonstration.</span>
           </div>
         )}
       </div>
@@ -84,6 +84,10 @@ export default function InstitutionProfilePage() {
           Campus Land & Infrastructure
         </button>
       </div>
+
+      <p className="border-l-2 border-slate-400 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        Profile values below are illustrative and browser-session edits are not saved to an institutional registry.
+      </p>
 
       {/* Profile Form */}
       <form onSubmit={handleSubmit} className="bg-white border border-slate-300 rounded shadow-sm p-6 space-y-6">

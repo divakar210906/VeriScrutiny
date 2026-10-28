@@ -39,10 +39,10 @@ export default function AicteHistoryPage() {
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-[#071a30] flex items-center gap-2">
             <History className="w-5 h-5 text-amber-600" />
-            <span>AICTE Scrutiny History & Audit Trail</span>
+            <span>Officer decision history</span>
           </h1>
           <p className="text-xs text-slate-500">
-            Chronological audit trail of automated determinations and officer regulatory decisions
+            Actions recorded in this browser demonstration workspace
           </p>
         </div>
 
@@ -58,6 +58,7 @@ export default function AicteHistoryPage() {
           <input
             type="text"
             placeholder="Search by Institution, Document, Action, or Officer ID..."
+            aria-label="Search officer history"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#071a30]"
@@ -111,7 +112,16 @@ export default function AicteHistoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filtered.map((item) => {
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <p className="font-semibold text-slate-800">{historyList.length === 0 ? "No officer actions recorded" : "No matching history"}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {historyList.length === 0 ? "Recorded decisions will appear here after an officer completes a review." : "Adjust your search or action filter."}
+                    </p>
+                  </td>
+                </tr>
+              ) : filtered.map((item) => {
                 const actionLabel = item.action || (item.result === "Verified" ? "Document Approved" : "Scrutiny Executed");
                 const officerLabel = item.scrutinizedBy || "AICTE-SR-9042";
 

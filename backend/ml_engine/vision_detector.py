@@ -8,18 +8,14 @@ def analyze_stamps_and_signatures(image: Image.Image) -> dict:
     Returns:
       {
         "seal_detected": bool,
-        "seal_confidence": float (0-1),
         "signature_detected": bool,
-        "signature_confidence": float (0-1),
         "details": list[str]
       }
     """
     if image is None:
         return {
             "seal_detected": False,
-            "seal_confidence": 0.0,
             "signature_detected": False,
-            "signature_confidence": 0.0,
             "details": ["No visual page render available for computer vision analysis."]
         }
 
@@ -59,7 +55,6 @@ def analyze_stamps_and_signatures(image: Image.Image) -> dict:
         contours, _ = cv2.findContours(closed_seal, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         seal_found = False
-        seal_conf = 0.0
         seal_count = 0
 
         min_seal_area = (w * h) * 0.0015  # min ~0.15% of page
@@ -77,9 +72,6 @@ def analyze_stamps_and_signatures(image: Image.Image) -> dict:
                     solidity = float(area) / hull_area if hull_area > 0 else 0
                     if solidity > 0.45:
                         seal_count += 1
-                        conf = min(0.98, 0.60 + (solidity * 0.35))
-                        if conf > seal_conf:
-                            seal_conf = conf
                         seal_found = True
 
         # ----------------------------------------------------
@@ -99,7 +91,6 @@ def analyze_stamps_and_signatures(image: Image.Image) -> dict:
         sig_contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         signature_found = False
-        sig_conf = 0.0
         sig_candidates = 0
 
         for cnt in sig_contours:
@@ -110,35 +101,24 @@ def analyze_stamps_and_signatures(image: Image.Image) -> dict:
                 # Signature strokes are typically horizontal (aspect > 2.0)
                 if aspect > 1.8 and bh < (h * 0.12):
                     sig_candidates += 1
-                    conf = min(0.96, 0.55 + min(0.40, (bw / (w * 0.3)) * 0.3))
-                    if conf > sig_conf:
-                        sig_conf = conf
                     signature_found = True
 
         details = []
         if seal_found:
-            details.append(f"Official departmental stamp/seal detected ({seal_count} instance(s), confidence {int(seal_conf*100)}%).")
+            details.append(f"Colored stamp-like mark detected by a visual heuristic ({seal_count} candidate(s)); not authenticated.")
         else:
             details.append("No colored departmental rubber seal identified via computer vision.")
 
         if signature_found:
-            details.append(f"Statutory authority signature stroke detected in footer section (confidence {int(sig_conf*100)}%).")
+            details.append(f"Signature-like strokes detected by a visual heuristic ({sig_candidates} candidate(s)); not authenticated.")
         else:
             details.append("Official signatory stroke not clearly resolved in footer quadrant.")
 
         return {
             "seal_detected": seal_found,
-            "seal_confidence": round(seal_conf, 2),
             "signature_detected": signature_found,
-            "signature_confidence": round(sig_conf, 2),
             "details": details
         }
 
-    except Exception as e:
-        return {
-            "seal_detected": False,
-            "seal_confidence": 0.0,
-            "signature_detected": False,
-            "signature_confidence": 0.0,
-            "details": [f"Vision analysis exception: {str(e)}"]
-        }
+    except Exception:
+        raise

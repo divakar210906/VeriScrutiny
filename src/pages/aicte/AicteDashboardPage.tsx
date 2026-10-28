@@ -1,6 +1,7 @@
 // src/pages/aicte/AicteDashboardPage.tsx
 import { Link } from "react-router-dom";
 import { aicteInstitutionsList } from "../../mockData";
+import { useDocuments } from "../../hooks/useDocuments";
 import { StatusBadge } from "../../components/StatusBadge";
 import { 
   Building2, 
@@ -13,7 +14,33 @@ import {
 } from "lucide-react";
 
 export default function AicteDashboardPage() {
-  const institutions = aicteInstitutionsList;
+  const { docs } = useDocuments();
+  const primaryHasDeficiency = docs.some((doc) => doc.status === "Deficiency Raised" || doc.status === "Needs Correction");
+  const primaryHasReview = docs.some((doc) => ["Under Scrutiny", "Under Review", "Re-submitted"].includes(doc.status));
+  const allRecordsVerified = docs.length > 0 && docs.every((doc) => doc.status === "Verified");
+  const primaryStatus = primaryHasDeficiency
+    ? "Deficient"
+    : allRecordsVerified
+    ? "Verified"
+    : primaryHasReview
+    ? "Under Review"
+    : "Pending Scrutiny";
+  const institutions = aicteInstitutionsList.map((item) => item.id === "KEC001"
+    ? {
+        ...item,
+        documents: docs,
+        documentRecordCount: docs.length,
+        status: primaryStatus,
+      }
+    : item);
+  const pendingCount = docs.filter((doc) => ["Submitted", "Pending"].includes(doc.status)).length;
+  const underReviewCount = docs.filter((doc) => ["Under Scrutiny", "Under Review", "Re-submitted"].includes(doc.status)).length;
+  const deficiencyCount = docs.filter((doc) => ["Deficiency Raised", "Needs Correction"].includes(doc.status)).length;
+  const completedCount = docs.filter((doc) => doc.status === "Verified").length;
+  const recentAnalyses = docs
+    .filter((doc) => doc.details.analysisResult)
+    .sort((left, right) => (right.details.analysisDate ?? "").localeCompare(left.details.analysisDate ?? ""))
+    .slice(0, 5);
 
   return (
     <div className="space-y-5">
@@ -26,7 +53,7 @@ export default function AicteDashboardPage() {
                 Scrutiny Portal
               </span>
               <span className="text-xs text-slate-500 font-mono">
-                Southern Region • Scrutiny Dashboard
+                Southern Region • Officer workload
               </span>
             </div>
             <h1 className="text-lg sm:text-xl font-bold text-[#071a30] flex items-center gap-2">
@@ -34,7 +61,7 @@ export default function AicteDashboardPage() {
               <span>Southern Region – Scrutiny Dashboard</span>
             </h1>
             <p className="text-xs text-slate-600">
-              Institutional Document Verification & Scrutiny Assistance System • AY 2026–27 Cycle
+              Demonstration application queue · Approval cycle 2026–27
             </p>
           </div>
 
@@ -42,22 +69,22 @@ export default function AicteDashboardPage() {
             to="/aicte/institutions"
             className="flex items-center gap-1.5 px-3.5 py-2 bg-[#071a30] hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm transition"
           >
-            <span>All Institutions (128)</span>
+            <span>Open application queue</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
-      {/* Five Statistics Cards Requested in Section 8 */}
+      {/* Current browser-local workload counts */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {/* Total Institutions */}
+        {/* Demo records */}
         <div className="bg-white p-3.5 rounded border border-slate-200 shadow-sm flex items-center gap-3">
           <div className="w-10 h-10 rounded bg-blue-50 border border-blue-200 flex items-center justify-center text-[#0b2545] flex-shrink-0">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 font-mono leading-tight">128</div>
-            <div className="text-xs text-slate-500 font-medium">Total Institutions</div>
+            <div className="text-2xl font-bold text-slate-900 font-mono leading-tight">{docs.length}</div>
+            <div className="text-xs text-slate-500 font-medium">Document records</div>
           </div>
         </div>
 
@@ -67,8 +94,8 @@ export default function AicteDashboardPage() {
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-amber-700 font-mono leading-tight">24</div>
-            <div className="text-xs text-slate-500 font-medium">Pending Scrutiny</div>
+            <div className="text-2xl font-bold text-amber-700 font-mono leading-tight">{pendingCount}</div>
+            <div className="text-xs text-slate-500 font-medium">Pending review</div>
           </div>
         </div>
 
@@ -78,8 +105,8 @@ export default function AicteDashboardPage() {
             <FileCheck2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-blue-700 font-mono leading-tight">18</div>
-            <div className="text-xs text-slate-500 font-medium">Under Scrutiny</div>
+            <div className="text-2xl font-bold text-blue-700 font-mono leading-tight">{underReviewCount}</div>
+            <div className="text-xs text-slate-500 font-medium">Under scrutiny</div>
           </div>
         </div>
 
@@ -89,8 +116,8 @@ export default function AicteDashboardPage() {
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-rose-700 font-mono leading-tight">4</div>
-            <div className="text-xs text-slate-500 font-medium">Deficiencies Raised</div>
+            <div className="text-2xl font-bold text-rose-700 font-mono leading-tight">{deficiencyCount}</div>
+            <div className="text-xs text-slate-500 font-medium">Action required</div>
           </div>
         </div>
 
@@ -100,21 +127,50 @@ export default function AicteDashboardPage() {
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-emerald-700 font-mono leading-tight">82</div>
-            <div className="text-xs text-slate-500 font-medium">Completed</div>
+            <div className="text-2xl font-bold text-emerald-700 font-mono leading-tight">{completedCount}</div>
+            <div className="text-xs text-slate-500 font-medium">Verified records</div>
           </div>
         </div>
       </div>
+
+      <section className="overflow-hidden rounded border border-slate-300 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[#071a30]">Recent VeriScrutiny recommendations</h2>
+          <p className="mt-1 text-xs text-slate-600">Advisory analysis only; officers make all workflow decisions.</p>
+        </div>
+        {recentAnalyses.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-slate-600">No document analyses have been run in this browser session.</p>
+        ) : (
+          <ul className="divide-y divide-slate-200">
+            {recentAnalyses.map((doc) => (
+              <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{doc.name}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {doc.details.analysisResult?.recommendation} · {doc.details.analysisResult?.summary.failed} mismatches · {doc.details.analysisResult?.summary.warnings} require review
+                  </p>
+                </div>
+                <Link
+                  to={`/aicte/review/${doc.details.institutionId || "KEC001"}/${doc.id}`}
+                  className="text-sm font-semibold text-blue-800 hover:underline"
+                >
+                  Review findings
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Institutions Awaiting Scrutiny Table */}
       <div className="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-[#071a30] uppercase tracking-wide">
-              Institutions Awaiting Scrutiny
+              Applications in the demonstration queue
             </h2>
             <p className="text-xs text-slate-500">
-              Applications filed for regulatory scrutiny and officer inspection
+              One illustrative application; its document records reflect the current browser workflow state.
             </p>
           </div>
           <span className="text-xs font-mono text-slate-500">AY 2026–27 Cycle</span>
@@ -127,32 +183,20 @@ export default function AicteDashboardPage() {
                 <th className="px-3.5 py-2.5">Institution</th>
                 <th className="px-3.5 py-2.5">AICTE ID</th>
                 <th className="px-3.5 py-2.5">Application</th>
-                <th className="px-3.5 py-2.5 text-center">Documents Submitted</th>
-                <th className="px-3.5 py-2.5 text-center">Pending Documents</th>
+                <th className="px-3.5 py-2.5 text-center">Document Records</th>
                 <th className="px-3.5 py-2.5">Scrutiny Status</th>
                 <th className="px-3.5 py-2.5 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {institutions.map((inst) => {
-                const pendingDocs = Math.max(0, inst.totalRequired - inst.submittedCount);
-
                 return (
                   <tr
                     key={inst.id}
-                    className={`transition-colors ${
-                      inst.id === "KEC001" ? "bg-amber-50/30 hover:bg-amber-50/60" : "hover:bg-blue-50/20"
-                    }`}
+                    className="transition-colors hover:bg-blue-50/30"
                   >
                     <td className="px-3.5 py-3">
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                        <span>{inst.name}</span>
-                        {inst.id === "KEC001" && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                            Demo Target
-                          </span>
-                        )}
-                      </div>
+                      <div className="font-bold text-slate-900">{inst.name}</div>
                       <div className="text-[11px] text-slate-500">
                         {inst.district}, {inst.state} • {inst.type}
                       </div>
@@ -164,10 +208,7 @@ export default function AicteDashboardPage() {
                       {inst.applicationId}
                     </td>
                     <td className="px-3.5 py-3 text-center font-mono font-bold text-slate-900">
-                      {inst.submittedCount} / {inst.totalRequired}
-                    </td>
-                    <td className="px-3.5 py-3 text-center font-mono font-bold text-slate-600">
-                      {pendingDocs}
+                      {inst.documentRecordCount}
                     </td>
                     <td className="px-3.5 py-3">
                       <StatusBadge status={inst.status} size="sm" />

@@ -25,7 +25,7 @@ export interface ExtractedField {
   verification: VerificationTag;
 }
 
-export type SystemRecommendation = "VERIFICATION PASSED" | "NEEDS CLARIFICATION" | "DEFICIENCY DETECTED";
+export type SystemRecommendation = "NO ISSUES DETECTED" | "NEEDS CLARIFICATION" | "DEFICIENCY DETECTED";
 
 export interface ChecklistItem {
   id: string;
@@ -36,6 +36,46 @@ export interface ChecklistItem {
   result: RuleResult;
   remarks: string;
   confidenceScore?: number;
+}
+
+export interface AiRelevantSection {
+  field: string;
+  text: string;
+  similarity: number;
+}
+
+export interface AiDocumentUnderstanding {
+  provider: string;
+  model: string;
+  status: "complete" | "skipped" | "unavailable";
+  task: string;
+  predictedDocumentType: string | null;
+  similarity: number | null;
+  expectedCategory: string | null;
+  expectedCategoryMatch: boolean | null;
+  relevantSections: AiRelevantSection[];
+  message: string;
+}
+
+export interface ScrutinyAnalysisResult {
+  extractedFields: ExtractedField[];
+  findings: ExtractedField[];
+  checklist: ChecklistItem[];
+  aiAnalysis?: AiDocumentUnderstanding;
+  recommendation: SystemRecommendation;
+  recommendationReason: string;
+  suggestedOfficerRemark: string;
+  tamperingScore?: number;
+  sealDetected?: boolean;
+  signatureDetected?: boolean;
+  forensicFlags?: string[];
+  meta?: Record<string, unknown>;
+  summary: {
+    total: number;
+    passed: number;
+    warnings: number;
+    failed: number;
+  };
 }
 
 export interface DocumentDetails {
@@ -60,6 +100,8 @@ export interface DocumentDetails {
   recommendation?: SystemRecommendation;
   recommendationReason?: string;
   extractedFields?: ExtractedField[];
+  analysisResult?: ScrutinyAnalysisResult;
+  analysisDate?: string;
   scrutinySummary?: {
     lastScrutinized: string;
     scrutinizedBy: string;
@@ -110,13 +152,12 @@ export interface RequiredDocument {
 export interface InstitutionApplication {
   id: string; // e.g. KEC001
   name: string;
-  applicationId: string; // e.g. APP-2026-00182
+  applicationId: string;
   aictePermanentId: string;
   state: string;
   district: string;
   type: string;
-  totalRequired: number;
-  submittedCount: number;
+  documentRecordCount: number;
   status: "Pending Scrutiny" | "Under Review" | "Verified" | "Deficient";
   lastUpdated: string;
   documents: Document[];

@@ -1,61 +1,98 @@
-// src/components/Breadcrumb.tsx
-import { Link, useLocation } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { aicteInstitutionsList } from "../mockData";
+import { useDocuments } from "../hooks/useDocuments";
 
 interface BreadcrumbItem {
   label: string;
   path?: string;
 }
 
-interface BreadcrumbProps {
-  items?: BreadcrumbItem[];
+function getBreadcrumbs(pathname: string, search: string, documentNames: Map<string, string>): BreadcrumbItem[] {
+  const segments = pathname.split("/").filter(Boolean);
+  const role = segments[0];
+  if (role !== "institution" && role !== "aicte") return [];
+
+  const base = `/${role}`;
+  const route = segments[1];
+
+  if (!route || route === "dashboard") return [{ label: "Dashboard" }];
+  if (route === "required-documents") {
+    return [{ label: "Required documents" }];
+  }
+  if (route === "upload") {
+    return [
+      { label: "Required documents", path: `${base}/required-documents` },
+      { label: "Upload document" },
+    ];
+  }
+  if (route === "submissions") return [{ label: "My submissions" }];
+  if (route === "notifications") return [{ label: "Notifications" }];
+  if (route === "history") return [{ label: "Scrutiny history" }];
+  if (route === "profile") return [{ label: "Profile" }];
+  if (route === "institutions") {
+    return search.includes("filter=pending")
+      ? [{ label: "Pending scrutiny" }]
+      : [{ label: "Institutions" }];
+  }
+  if (route === "institution" && segments[2]) {
+    const institutionId = segments[2];
+    const institution = aicteInstitutionsList.find((item) => item.id === institutionId);
+    return [
+      { label: "Institutions", path: `${base}/institutions` },
+      { label: institution?.name ?? institutionId },
+    ];
+  }
+  if ((route === "review" || route === "scrutiny") && segments.length >= 3) {
+    const institutionId = route === "review" ? segments[2] : "KEC001";
+    const docId = route === "review" ? segments[3] : segments[2];
+    const institution = aicteInstitutionsList.find((item) => item.id === institutionId);
+    const docName = documentNames.get(docId) ?? "Document review";
+    return [
+      { label: "Pending scrutiny", path: `${base}/institutions?filter=pending` },
+      { label: institution?.name ?? institutionId, path: `${base}/institution/${institutionId}` },
+      { label: docName },
+    ];
+  }
+  if (route === "report" && segments.length >= 4) {
+    const institutionId = segments[2];
+    const docId = segments[3];
+    return [
+      { label: "Institutions", path: `${base}/institutions` },
+      { label: institutionId, path: `${base}/institution/${institutionId}` },
+      { label: documentNames.get(docId) ?? "Workflow record" },
+      { label: "Report" },
+    ];
+  }
+  if (route === "reports") return [{ label: "Workflow record" }];
+
+  return [{ label: route.replace(/-/g, " ") }];
 }
 
-export default function Breadcrumb({ items }: BreadcrumbProps) {
+export default function Breadcrumb() {
   const location = useLocation();
-
-  // If custom items are not provided, auto-generate from pathname
-  const pathnames = location.pathname.split("/").filter((x) => x);
-
-  const crumbs: BreadcrumbItem[] = items || [
-    { label: "Dashboard", path: "/dashboard" },
-    ...pathnames.map((value, index) => {
-      const to = `/${pathnames.slice(0, index + 1).join("/")}`;
-      let label = value.charAt(0).toUpperCase() + value.slice(1);
-      if (value.startsWith("doc-")) {
-        label = "Document Details";
-      }
-      return {
-        label: label.replace(/-/g, " "),
-        path: index === pathnames.length - 1 ? undefined : to,
-      };
-    }),
-  ];
+  const { docs } = useDocuments();
+  const role = location.pathname.startsWith("/aicte") ? "aicte" : "institution";
+  const dashboardPath = `/${role}/dashboard`;
+  const documentNames = new Map(docs.map((document) => [document.id, document.name]));
+  const crumbs = getBreadcrumbs(location.pathname, location.search, documentNames);
+  if (crumbs.length === 1 && crumbs[0].label === "Dashboard") return null;
 
   return (
-    <nav className="flex items-center text-xs text-slate-500 py-2 border-b border-slate-200/80 mb-4 bg-white/70 px-4 -mx-4 sm:-mx-6 sm:px-6">
-      <Link
-        to="/dashboard"
-        className="flex items-center gap-1 hover:text-[#0b2545] font-medium transition-colors"
-      >
-        <Home className="w-3.5 h-3.5 text-slate-500" />
+    <nav className="portal-breadcrumb" aria-label="Breadcrumb">
+      <Link to={dashboardPath} className="portal-breadcrumb-home">
+        <Home aria-hidden="true" />
         <span>Home</span>
       </Link>
-
-      {crumbs.map((crumb, idx) => (
-        <div key={idx} className="flex items-center">
-          <ChevronRight className="w-3.5 h-3.5 mx-1.5 text-slate-400" />
+      {crumbs.map((crumb, index) => (
+        <span className="portal-breadcrumb-segment" key={`${crumb.label}-${index}`}>
+          <ChevronRight aria-hidden="true" />
           {crumb.path ? (
-            <Link
-              to={crumb.path}
-              className="hover:text-[#0b2545] font-medium text-slate-600 transition-colors"
-            >
-              {crumb.label}
-            </Link>
+            <Link to={crumb.path}>{crumb.label}</Link>
           ) : (
-            <span className="font-semibold text-[#0b2545] truncate max-w-xs">{crumb.label}</span>
+            <span aria-current="page">{crumb.label}</span>
           )}
-        </div>
+        </span>
       ))}
     </nav>
   );
