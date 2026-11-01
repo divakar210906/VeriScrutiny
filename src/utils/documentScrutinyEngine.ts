@@ -223,7 +223,7 @@ export function evaluateDocumentScrutiny(
     return {
       extractedFields,
       checklist,
-      recommendation: "VERIFICATION PASSED",
+      recommendation: "NO ISSUES DETECTED",
       recommendationReason: "All statutory university affiliation parameters and course schedules successfully validated.",
       suggestedOfficerRemark: "Affiliation order verified for AY 2026-27. Recommended for approval.",
       summary: { total: checklist.length, passed, warnings, failed },
@@ -388,7 +388,7 @@ export function evaluateDocumentScrutiny(
     return {
       extractedFields,
       checklist,
-      recommendation: "VERIFICATION PASSED",
+      recommendation: "NO ISSUES DETECTED",
       recommendationReason: "Structural safety certificate meets all technical parameters and NBC norms.",
       suggestedOfficerRemark: "Structural stability certificate verified and in order.",
       summary: { total: checklist.length, passed, warnings, failed },
@@ -442,7 +442,7 @@ export function evaluateDocumentScrutiny(
     return {
       extractedFields,
       checklist,
-      recommendation: "VERIFICATION PASSED",
+      recommendation: "NO ISSUES DETECTED",
       recommendationReason: "Land use conversion and campus acreage fully satisfy AICTE statutory requirements.",
       suggestedOfficerRemark: "Land documentation validated against revenue registry.",
       summary: { total: checklist.length, passed, warnings, failed },
@@ -504,7 +504,7 @@ export function evaluateDocumentScrutiny(
   return {
     extractedFields,
     checklist,
-    recommendation: "VERIFICATION PASSED",
+    recommendation: "NO ISSUES DETECTED",
     recommendationReason: "All regulatory verification criteria verified and compliant.",
     suggestedOfficerRemark: "Document scrutinized and recommended for approval.",
     summary: { total: checklist.length, passed, warnings, failed },

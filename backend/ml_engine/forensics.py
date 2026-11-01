@@ -70,5 +70,5 @@ def compute_ela(image: Image.Image, quality: int = 90, scale: int = 15) -> tuple
         final_score = float(min(100.0, max(0.0, score)))
         return round(final_score, 1), forensic_flags
 
-    except Exception as e:
-        return 0.0, [f"Forensics processing notice: {str(e)}"]
+    except Exception:
+        raise

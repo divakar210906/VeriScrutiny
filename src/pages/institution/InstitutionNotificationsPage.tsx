@@ -1,98 +1,82 @@
-// src/pages/institution/InstitutionNotificationsPage.tsx
 import { Link } from "react-router-dom";
-import { 
-  Bell, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Clock, 
-  ArrowRight 
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Clock } from "lucide-react";
+import { useDocuments } from "../../hooks/useDocuments";
 
 export default function InstitutionNotificationsPage() {
-  const notifications = [
-    {
-      id: "notif-1",
-      title: "Action Required: Faculty Declaration Needs Correction",
-      message: "The AICTE Scrutiny Committee flagged your Faculty Declaration (Doc Ref: KEC/REG-FAC/DEC-2026-V1). Cadre ratio is 1:2.4 instead of required 1:2:6 norm.",
-      timestamp: "Today, 11:20 AM",
-      action: "/institution/upload",
-      actionLabel: "Re-upload Document",
-      urgent: true,
-    },
-    {
-      id: "notif-2",
-      title: "Submission Ingested: Fire Safety Certificate",
-      message: "Your Fire Safety Certificate (TN-FRS/ED-ERD/NOC-2025/1192) was successfully filed and is currently under review by the scrutiny officer.",
-      timestamp: "Yesterday, 04:45 PM",
-      action: "/institution/submissions",
-      actionLabel: "View Submission",
-      urgent: false,
-    },
-    {
-      id: "notif-3",
-      title: "Scrutiny Window Reminder: Extension of Approval 2026–27",
-      message: "Final deadline for uploading all 10 mandatory statutory filings for Southern Region is 15 November 2026.",
-      timestamp: "2 days ago",
-      action: "/institution/required-documents",
-      actionLabel: "View Checklist",
-      urgent: false,
-    },
-  ];
+  const { docs, loading } = useDocuments();
+  const notifications = docs
+    .filter((doc) => ["Deficiency Raised", "Needs Correction", "Re-submitted", "Under Scrutiny"].includes(doc.status))
+    .map((doc) => {
+      const needsAction = doc.status === "Deficiency Raised" || doc.status === "Needs Correction";
+      const title = needsAction
+        ? `Officer requested a correction: ${doc.name}`
+        : doc.status === "Re-submitted"
+        ? `Re-submission received: ${doc.name}`
+        : `Under officer review: ${doc.name}`;
+
+      return {
+        id: `${doc.id}-${doc.status}`,
+        title,
+        message: doc.details.officerRemarks
+          ?? doc.details.rejectionReason
+          ?? (needsAction ? "No officer remarks were recorded. Contact the reviewing officer before replacing the document." : `Current status: ${doc.status}.`),
+        timestamp: doc.lastScrutinized ?? doc.submissionDate,
+        action: needsAction ? `/institution/upload?replace=${doc.id}` : "/institution/submissions",
+        actionLabel: needsAction ? "Upload a replacement" : "View submission",
+        needsAction,
+      };
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  if (loading) {
+    return <p role="status" className="rounded border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading notifications…</p>;
+  }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
-      <div className="bg-white p-4 rounded border border-slate-300 shadow-sm flex items-center justify-between">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#0b2545] flex items-center gap-2">
-            <Bell className="w-5 h-5 text-amber-600" />
-            <span>Compliance Notifications & Alerts</span>
-          </h1>
-          <p className="text-xs text-slate-500">
-            Official communications dispatched by AICTE Scrutiny Division to Kongu Engineering College
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-4">
+      <header className="rounded border border-slate-300 bg-white p-4">
+        <h1 className="flex items-center gap-2 text-lg font-bold text-[#0b2545]">
+          <Bell className="h-5 w-5 text-slate-600" aria-hidden="true" />
+          Application notifications
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">Updates are derived from document status changes in this browser.</p>
+      </header>
 
-      <div className="bg-white border border-slate-300 rounded shadow-sm divide-y divide-slate-200">
-        {notifications.map((n) => (
-          <div
-            key={n.id}
-            className={`p-4 flex items-start gap-3 text-xs ${
-              n.urgent ? "bg-amber-50/40" : "hover:bg-slate-50"
-            }`}
-          >
-            <div className="mt-0.5 flex-shrink-0">
-              {n.urgent ? (
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              )}
-            </div>
-
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className={`font-bold ${n.urgent ? "text-amber-950" : "text-slate-900"}`}>
-                  {n.title}
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  <span>{n.timestamp}</span>
-                </span>
-              </div>
-              <p className="text-slate-600 leading-relaxed">{n.message}</p>
-              <div className="pt-1">
-                <Link
-                  to={n.action}
-                  className="text-[#0056b3] font-semibold hover:underline inline-flex items-center gap-0.5 text-[11px]"
-                >
-                  <span>{n.actionLabel}</span>
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
+      <section aria-label="Notifications" className="divide-y divide-slate-200 rounded border border-slate-300 bg-white">
+        {notifications.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <Bell className="mx-auto h-7 w-7 text-slate-400" aria-hidden="true" />
+            <h2 className="mt-3 text-sm font-semibold text-slate-800">No application updates</h2>
+            <p className="mt-1 text-sm text-slate-600">Officer decisions and re-submission updates will appear here.</p>
+            <Link to="/institution/submissions" className="mt-4 inline-flex text-sm font-semibold text-blue-800 hover:underline">
+              View submissions
+            </Link>
           </div>
+        ) : notifications.map((notification) => (
+          <article key={notification.id} className={`flex items-start gap-3 p-4 ${notification.needsAction ? "bg-amber-50/60" : ""}`}>
+            <div className="mt-0.5 shrink-0">
+              {notification.needsAction
+                ? <AlertTriangle className="h-4 w-4 text-amber-700" aria-hidden="true" />
+                : notification.title.startsWith("Re-submission")
+                ? <CheckCircle2 className="h-4 w-4 text-blue-700" aria-hidden="true" />
+                : <Clock className="h-4 w-4 text-slate-500" aria-hidden="true" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h2 className="text-sm font-semibold text-slate-900">{notification.title}</h2>
+                <time dateTime={notification.timestamp} className="text-xs text-slate-500">
+                  {new Date(notification.timestamp).toLocaleString("en-IN")}
+                </time>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{notification.message}</p>
+              <Link to={notification.action} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue-800 hover:underline">
+                {notification.actionLabel}
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+          </article>
         ))}
-      </div>
+      </section>
     </div>
   );
 }

@@ -21,20 +21,41 @@ export default function AicteInstitutionDetailPage() {
   const { docs } = useDocuments();
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<Document | null>(null);
 
-  const inst = aicteInstitutionsList.find((i) => i.id === id) || aicteInstitutionsList[0];
+  const inst = aicteInstitutionsList.find((i) => i.id === id);
+  if (!inst) {
+    return (
+      <section className="rounded border border-slate-300 bg-white p-6">
+        <h1 className="text-lg font-semibold text-slate-900">Institution not found</h1>
+        <p className="mt-2 text-sm text-slate-600">The institution reference in this link is not present in the demonstration data.</p>
+        <Link to="/aicte/institutions" className="mt-4 inline-flex text-sm font-semibold text-blue-800 hover:underline">
+          Return to institutions
+        </Link>
+      </section>
+    );
+  }
 
   // For Kongu Engineering College, use active docs from useDocuments() for real-time reactivity
-  const isKEC = id === "KEC001" || id === "1" || inst.id === "KEC001";
+  const isKEC = inst.id === "KEC001";
   const submittedDocs = isKEC ? docs : inst.documents;
 
   const verifiedCount = submittedDocs.filter((d) => d.status === "Verified").length;
-  const underScrutinyCount = submittedDocs.filter((d) => d.status === "Under Scrutiny" || d.status === "Submitted" || d.status === "Re-submitted").length;
+  const underScrutinyCount = submittedDocs.filter((d) => ["Under Scrutiny", "Under Review", "Re-submitted"].includes(d.status)).length;
+  const allVerified = submittedDocs.length > 0 && verifiedCount === submittedDocs.length;
   const deficientCount = submittedDocs.filter((d) => d.status === "Deficiency Raised" || d.status === "Needs Correction").length;
+  const currentStatus = isKEC
+    ? allVerified
+      ? "Verified"
+      : deficientCount > 0
+      ? "Deficient"
+      : underScrutinyCount > 0
+      ? "Under Review"
+      : "Pending Scrutiny"
+    : inst.status;
 
   return (
     <div className="space-y-5">
       {/* Back Link & Header */}
-      <div className="bg-white border border-slate-300 rounded shadow-sm p-4 space-y-2">
+      <div id="application-summary" className="bg-white border border-slate-300 rounded shadow-sm p-4 space-y-2">
         <div className="flex items-center gap-2">
           <Link
             to="/aicte/institutions"
@@ -49,7 +70,7 @@ export default function AicteInstitutionDetailPage() {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 rounded">
-                AICTE Official Review
+                Demonstration application
               </span>
               <span className="text-xs font-mono text-slate-600">
                 AICTE ID: <strong className="text-slate-900">{inst.aictePermanentId}</strong>
@@ -75,7 +96,7 @@ export default function AicteInstitutionDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <StatusBadge status={inst.status} size="lg" />
+            <StatusBadge status={currentStatus} size="lg" />
           </div>
         </div>
       </div>
@@ -86,9 +107,9 @@ export default function AicteInstitutionDetailPage() {
           <FileCheck2 className="w-5 h-5 text-slate-700" />
           <div>
             <div className="text-xl font-bold font-mono text-slate-900">
-              {submittedDocs.length} / {inst.totalRequired}
+              {submittedDocs.length}
             </div>
-            <div className="text-[11px] text-slate-500 font-medium">Documents Submitted</div>
+            <div className="text-[11px] text-slate-500 font-medium">Document records</div>
           </div>
         </div>
 
@@ -96,7 +117,7 @@ export default function AicteInstitutionDetailPage() {
           <Clock className="w-5 h-5 text-blue-700" />
           <div>
             <div className="text-xl font-bold font-mono text-blue-800">{underScrutinyCount}</div>
-            <div className="text-[11px] text-slate-500 font-medium">Pending Review</div>
+            <div className="text-[11px] text-slate-500 font-medium">Under review</div>
           </div>
         </div>
 
@@ -104,7 +125,7 @@ export default function AicteInstitutionDetailPage() {
           <CheckCircle2 className="w-5 h-5 text-emerald-700" />
           <div>
             <div className="text-xl font-bold font-mono text-emerald-800">{verifiedCount}</div>
-            <div className="text-[11px] text-slate-500 font-medium">Verified Clean</div>
+            <div className="text-[11px] text-slate-500 font-medium">Verified documents</div>
           </div>
         </div>
 
@@ -118,18 +139,18 @@ export default function AicteInstitutionDetailPage() {
       </div>
 
       {/* Submitted Documents Table - Matching Section 10 */}
-      <div className="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
+      <div id="submitted-documents" className="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#071a30]">
               SUBMITTED DOCUMENTS
             </h2>
             <p className="text-[11px] text-slate-500">
-              Institutional filings queued for verification against AICTE statutory standards
+              Select a document to run the available evidence checks and review advisory findings.
             </p>
           </div>
           <span className="text-xs font-mono font-bold text-slate-700">
-            {submittedDocs.length} Documents Active
+            {submittedDocs.length} document records
           </span>
         </div>
 
@@ -140,24 +161,20 @@ export default function AicteInstitutionDetailPage() {
                 <th className="px-3.5 py-2.5">Document</th>
                 <th className="px-3.5 py-2.5 w-36">Tracking ID</th>
                 <th className="px-3.5 py-2.5 w-28">Uploaded Date</th>
-                <th className="px-3.5 py-2.5 w-44">File Checksum</th>
                 <th className="px-3.5 py-2.5 w-36">Scrutiny Status</th>
                 <th className="px-3.5 py-2.5 text-right w-40">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {submittedDocs.map((doc) => {
-                const trackingCode = doc.trackingId || doc.details?.trackingId || `VS-2026-KEC-${doc.id.replace("doc-", "100")}`;
-                const checksumShort = doc.details?.checksum ? `${doc.details.checksum.substring(0, 14)}...` : "e3b0c44298fc...";
+              {submittedDocs.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">No document records are available for this application.</td></tr>
+              ) : submittedDocs.map((doc) => {
+                const trackingCode = doc.trackingId || doc.details?.trackingId || "Not assigned";
 
                 return (
                   <tr
                     key={doc.id}
-                    className={`transition-colors ${
-                      doc.id === "doc-2"
-                        ? "bg-amber-50/40 hover:bg-amber-50/70"
-                        : "hover:bg-blue-50/20"
-                    }`}
+                    className="transition-colors hover:bg-blue-50/30"
                   >
                     <td className="px-3.5 py-3">
                       <div className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -180,10 +197,6 @@ export default function AicteInstitutionDetailPage() {
                       })}
                     </td>
 
-                    <td className="px-3.5 py-3 font-mono text-slate-500 text-[11px]" title={doc.details?.checksum}>
-                      {checksumShort}
-                    </td>
-
                     <td className="px-3.5 py-3">
                       <StatusBadge status={doc.status} size="sm" />
                     </td>
@@ -201,13 +214,9 @@ export default function AicteInstitutionDetailPage() {
 
                         <Link
                           to={`/aicte/review/${inst.id}/${doc.id}`}
-                          className={`px-3 py-1 rounded text-xs font-bold transition inline-flex items-center gap-1 shadow-xs ${
-                            doc.id === "doc-2"
-                              ? "bg-[#071a30] hover:bg-[#134074] text-white"
-                              : "bg-[#0b2545] hover:bg-slate-800 text-white"
-                          }`}
+                          className="px-3 py-1 rounded bg-[#0b2545] text-white text-xs font-bold transition hover:bg-slate-800 inline-flex items-center gap-1 shadow-xs"
                         >
-                          <span>Start Scrutiny</span>
+                          <span>Open review</span>
                         </Link>
                       </div>
                     </td>
@@ -222,14 +231,15 @@ export default function AicteInstitutionDetailPage() {
       {/* Quick View Modal */}
       {selectedPreviewDoc && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded border border-slate-300 shadow-xl max-w-lg w-full p-5 space-y-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="document-docket-title" className="bg-white rounded border border-slate-300 shadow-xl max-h-[85vh] max-w-lg w-full overflow-y-auto p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 className="font-bold text-sm text-[#071a30] flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 text-amber-600" />
-                <span>Document Docket: {selectedPreviewDoc.name}</span>
+                <span id="document-docket-title">Document Docket: {selectedPreviewDoc.name}</span>
               </h3>
               <button
                 onClick={() => setSelectedPreviewDoc(null)}
+                aria-label="Close document details"
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
@@ -239,7 +249,7 @@ export default function AicteInstitutionDetailPage() {
             <div className="space-y-2 text-xs text-slate-700">
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500 font-semibold">Tracking Ref:</span>
-                <span className="font-mono font-bold text-[#071a30]">{selectedPreviewDoc.trackingId || `VS-2026-KEC-${selectedPreviewDoc.id.replace("doc-", "100")}`}</span>
+                <span className="font-mono font-bold text-[#071a30]">{selectedPreviewDoc.trackingId || "Not assigned"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500 font-semibold">Issuing Authority:</span>

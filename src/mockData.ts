@@ -10,7 +10,6 @@ import type {
   RequiredDocument,
   InstitutionApplication
 } from "./types";
-import { evaluateDocumentScrutiny } from "./utils/documentScrutinyEngine";
 
 export const institution: Institution = {
   id: "KEC001",
@@ -55,7 +54,7 @@ const daysAhead = (n: number) => new Date(now.getTime() + n * 24 * 60 * 60 * 100
 const rawDocumentsData = [
   {
     id: "doc-1",
-    trackingId: "VS-2026-KEC-1001",
+    trackingId: "DEMO-KEC-1001",
     name: "Affiliation Order",
     category: "Academic / Affiliation",
     academicYear: "2026-2027",
@@ -69,11 +68,11 @@ const rawDocumentsData = [
     fileSize: "2.4 MB",
     checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     type: "Affiliation Order",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-2",
-    trackingId: "VS-2026-KEC-1002",
+    trackingId: "DEMO-KEC-1002",
     name: "Fire Safety Certificate",
     category: "Fire & Safety",
     academicYear: "2026-2027",
@@ -91,7 +90,7 @@ const rawDocumentsData = [
   },
   {
     id: "doc-3",
-    trackingId: "VS-2026-KEC-1003",
+    trackingId: "DEMO-KEC-1003",
     name: "Building Stability Certificate",
     category: "Infrastructure",
     academicYear: "2026-2027",
@@ -105,11 +104,11 @@ const rawDocumentsData = [
     fileSize: "4.1 MB",
     checksum: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
     type: "Building Stability Certificate",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-4",
-    trackingId: "VS-2026-KEC-1004",
+    trackingId: "DEMO-KEC-1004",
     name: "Faculty Declaration",
     category: "Academic / Affiliation",
     academicYear: "2026-2027",
@@ -123,12 +122,11 @@ const rawDocumentsData = [
     fileSize: "3.7 MB",
     checksum: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
     type: "Faculty Declaration",
-    rejectionReason: "Faculty cadre ratio declaration is non-compliant with AICTE Approval Process Handbook norms (1:2.4 vs mandated 1:2:6).",
-    initialStatus: "Needs Correction" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-5",
-    trackingId: "VS-2026-KEC-1005",
+    trackingId: "DEMO-KEC-1005",
     name: "AICTE Approval Letter (EoA)",
     category: "Academic / Affiliation",
     academicYear: "2026-2027",
@@ -142,11 +140,11 @@ const rawDocumentsData = [
     fileSize: "1.9 MB",
     checksum: "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
     type: "AICTE Approval Letter",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-6",
-    trackingId: "VS-2026-KEC-1006",
+    trackingId: "DEMO-KEC-1006",
     name: "Fee Structure Declaration",
     category: "Governance & Finance",
     academicYear: "2026-2027",
@@ -160,11 +158,11 @@ const rawDocumentsData = [
     fileSize: "2.1 MB",
     checksum: "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
     type: "Fee Declaration",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-7",
-    trackingId: "VS-2026-KEC-1007",
+    trackingId: "DEMO-KEC-1007",
     name: "Land Ownership & Registered Title Deed",
     category: "Infrastructure",
     academicYear: "2026-2027",
@@ -178,11 +176,11 @@ const rawDocumentsData = [
     fileSize: "5.4 MB",
     checksum: "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00",
     type: "Land Ownership",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
   {
     id: "doc-8",
-    trackingId: "VS-2026-KEC-1008",
+    trackingId: "DEMO-KEC-1008",
     name: "Campus Occupancy Certificate",
     category: "Infrastructure",
     academicYear: "2026-2027",
@@ -196,32 +194,14 @@ const rawDocumentsData = [
     fileSize: "3.2 MB",
     checksum: "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
     type: "Occupancy Certificate",
-    initialStatus: "Verified" as DocumentStatus,
+    initialStatus: "Submitted" as DocumentStatus,
   },
 ];
 
 /**
- * Build rich document records with evaluated rules
+ * Seed illustrative browser records without source files or generated analysis.
  */
 export const documents: Document[] = rawDocumentsData.map((raw) => {
-  const dummyDoc: Document = {
-    id: raw.id,
-    name: raw.name,
-    category: raw.category,
-    academicYear: raw.academicYear,
-    documentNumber: raw.documentNumber,
-    issuingAuthority: raw.issuingAuthority,
-    issueDate: raw.issueDate,
-    expiryDate: raw.expiryDate,
-    submissionDate: raw.submissionDate,
-    status: raw.initialStatus,
-    trackingId: raw.trackingId,
-    details: {} as any,
-    checklist: [],
-  };
-
-  const scrutinyResult = evaluateDocumentScrutiny(dummyDoc);
-
   const details: DocumentDetails = {
     type: raw.type,
     category: raw.category,
@@ -239,23 +219,6 @@ export const documents: Document[] = rawDocumentsData.map((raw) => {
     checksum: raw.checksum,
     status: raw.initialStatus,
     trackingId: raw.trackingId,
-    rejectionReason: raw.rejectionReason,
-    recommendation: scrutinyResult.recommendation,
-    recommendationReason: scrutinyResult.recommendationReason,
-    officerRemarks: raw.rejectionReason || scrutinyResult.suggestedOfficerRemark,
-    extractedFields: scrutinyResult.extractedFields,
-    scrutinySummary: {
-      lastScrutinized: daysAgo(1),
-      scrutinizedBy: "AICTE Southern Regional Scrutiny Cell (CISC)",
-      status: raw.initialStatus,
-      reason: raw.rejectionReason || scrutinyResult.recommendationReason,
-      totalChecks: scrutinyResult.summary.total,
-      passed: scrutinyResult.summary.passed,
-      warnings: scrutinyResult.summary.warnings,
-      failed: scrutinyResult.summary.failed,
-      recommendation: scrutinyResult.recommendation,
-      officerRemarks: raw.rejectionReason || scrutinyResult.suggestedOfficerRemark,
-    },
   };
 
   return {
@@ -270,9 +233,8 @@ export const documents: Document[] = rawDocumentsData.map((raw) => {
     submissionDate: raw.submissionDate,
     status: raw.initialStatus,
     trackingId: raw.trackingId,
-    lastScrutinized: daysAgo(1),
     details,
-    checklist: scrutinyResult.checklist,
+    checklist: [],
   };
 });
 
@@ -411,72 +373,15 @@ export const aicteInstitutionsList: InstitutionApplication[] = [
   {
     id: "KEC001",
     name: "Kongu Engineering College",
-    applicationId: "APP-2026-00182",
-    aictePermanentId: "1-3512345671",
+    applicationId: "DEMO-KEC-2026-01",
+    aictePermanentId: institution.aictePermanentId,
     state: "Tamil Nadu",
     district: "Erode",
     type: "Autonomous Engineering College",
-    totalRequired: 10,
-    submittedCount: 8,
-    status: "Pending Scrutiny",
+    documentRecordCount: documents.length,
+    status: "Under Review",
     lastUpdated: daysAgo(1),
     documents,
-  },
-  {
-    id: "PSG002",
-    name: "PSG College of Technology",
-    applicationId: "APP-2026-00045",
-    aictePermanentId: "1-1249871120",
-    state: "Tamil Nadu",
-    district: "Coimbatore",
-    type: "Govt. Aided Autonomous",
-    totalRequired: 10,
-    submittedCount: 10,
-    status: "Verified",
-    lastUpdated: daysAgo(3),
-    documents: documents.slice(0, 5),
-  },
-  {
-    id: "CIT003",
-    name: "Coimbatore Institute of Technology",
-    applicationId: "APP-2026-00098",
-    aictePermanentId: "1-4458921001",
-    state: "Tamil Nadu",
-    district: "Coimbatore",
-    type: "Govt. Aided Autonomous",
-    totalRequired: 10,
-    submittedCount: 9,
-    status: "Under Review",
-    lastUpdated: daysAgo(2),
-    documents: documents.slice(0, 4),
-  },
-  {
-    id: "TCE004",
-    name: "Thiagarajar College of Engineering",
-    applicationId: "APP-2026-00142",
-    aictePermanentId: "1-7789123044",
-    state: "Tamil Nadu",
-    district: "Madurai",
-    type: "Autonomous Engineering College",
-    totalRequired: 10,
-    submittedCount: 6,
-    status: "Deficient",
-    lastUpdated: daysAgo(4),
-    documents: documents.slice(0, 3),
-  },
-  {
-    id: "GCT005",
-    name: "Government College of Technology",
-    applicationId: "APP-2026-00210",
-    aictePermanentId: "1-5512399081",
-    state: "Tamil Nadu",
-    district: "Coimbatore",
-    type: "Government Engineering College",
-    totalRequired: 10,
-    submittedCount: 10,
-    status: "Verified",
-    lastUpdated: daysAgo(5),
-    documents: documents.slice(0, 5),
   },
 ];
 
@@ -489,86 +394,9 @@ export const documentDetails: Record<string, Document> = documents.reduce(
 );
 
 /**
- * Historical verification audits
+ * History starts empty and is populated by actions taken in this browser.
  */
-export const verificationHistory: VerificationHistoryItem[] = [
-  {
-    id: "hist-01",
-    reportId: "SCR-2026-TN-KEC-0042",
-    institutionId: "KEC001",
-    institutionName: "Kongu Engineering College",
-    applicationId: "APP-2026-00182",
-    documentId: "doc-2",
-    documentName: "Fire Safety Certificate",
-    documentNumber: "TN-FRS/ED-ERD/NOC-2025/1192",
-    category: "Fire & Safety",
-    scrutinyDate: "25 Oct 2026 10:46 AM",
-    scrutinizedBy: "AICTE-SR-9042",
-    action: "Deficiency Raised",
-    result: "Awaiting Institution Response",
-    passedCount: 7,
-    warningCount: 1,
-    failedCount: 0,
-    remarks: "Submit renewed certificate or clarification regarding validity.",
-  },
-  {
-    id: "hist-02",
-    reportId: "SCR-2026-TN-KEC-0041",
-    institutionId: "KEC001",
-    institutionName: "Kongu Engineering College",
-    applicationId: "APP-2026-00182",
-    documentId: "doc-2",
-    documentName: "Fire Safety Certificate",
-    documentNumber: "TN-FRS/ED-ERD/NOC-2025/1192",
-    category: "Fire & Safety",
-    scrutinyDate: "25 Oct 2026 10:42 AM",
-    scrutinizedBy: "AICTE-SR-9042",
-    action: "Scrutiny Executed",
-    result: "Needs Clarification",
-    passedCount: 7,
-    warningCount: 1,
-    failedCount: 0,
-    remarks: "Certificate validity requires external confirmation against Fire & Rescue Services live portal.",
-  },
-  {
-    id: "hist-03",
-    reportId: "SCR-2026-TN-KEC-0039",
-    institutionId: "KEC001",
-    institutionName: "Kongu Engineering College",
-    applicationId: "APP-2026-00182",
-    documentId: "doc-1",
-    documentName: "Affiliation Order",
-    documentNumber: "AU/CAC/AFF/2026-27/0824",
-    category: "Academic / Affiliation",
-    scrutinyDate: "24 Oct 2026 03:15 PM",
-    scrutinizedBy: "AICTE-SR-9042",
-    action: "Document Approved",
-    result: "Verified",
-    passedCount: 7,
-    warningCount: 0,
-    failedCount: 0,
-    remarks: "All statutory affiliation parameters successfully validated.",
-  },
-  {
-    id: "hist-04",
-    reportId: "SCR-2026-TN-KEC-0035",
-    institutionId: "KEC001",
-    institutionName: "Kongu Engineering College",
-    applicationId: "APP-2026-00182",
-    documentId: "doc-4",
-    documentName: "Faculty Declaration",
-    documentNumber: "KEC/REG-FAC/DEC-2026-V1",
-    category: "Academic / Affiliation",
-    scrutinyDate: "23 Oct 2026 11:30 AM",
-    scrutinizedBy: "AICTE-SR-9042",
-    action: "Deficiency Raised",
-    result: "Needs Correction",
-    passedCount: 5,
-    warningCount: 1,
-    failedCount: 1,
-    remarks: "Faculty cadre ratio declaration non-compliant with AICTE Approval Process Handbook norms (1:2:6).",
-  },
-];
+export const verificationHistory: VerificationHistoryItem[] = [];
 
 /**
  * Generate official Scrutiny Report for any document

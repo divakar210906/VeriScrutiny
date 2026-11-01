@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { aicteInstitutionsList } from "../../mockData";
+import { useDocuments } from "../../hooks/useDocuments";
 import { StatusBadge } from "../../components/StatusBadge";
 import { 
   Building, 
@@ -11,15 +12,27 @@ import {
 } from "lucide-react";
 
 export default function AicteInstitutionsPage() {
-  const [searchParams] = useSearchParams();
+  const { docs } = useDocuments();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialFilter = searchParams.get("filter") === "pending" ? "Pending Scrutiny" : "All";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(initialFilter);
 
-  const filterOptions = ["All", "Pending Scrutiny", "Under Scrutiny", "Deficiency Raised", "Completed"];
+  const hasDeficiency = docs.some((doc) => doc.status === "Deficiency Raised" || doc.status === "Needs Correction");
+  const hasReview = docs.some((doc) => ["Under Scrutiny", "Under Review", "Re-submitted"].includes(doc.status));
+  const allVerified = docs.length > 0 && docs.every((doc) => doc.status === "Verified");
+  const institutions = aicteInstitutionsList.map((item) => item.id === "KEC001"
+    ? {
+        ...item,
+        documents: docs,
+        documentRecordCount: docs.length,
+        status: hasDeficiency ? "Deficient" : allVerified ? "Verified" : hasReview ? "Under Review" : "Pending Scrutiny",
+      }
+    : item);
+  const filterOptions = ["All", "Pending Scrutiny", "Under Review", "Deficient", "Verified"];
 
-  const filtered = aicteInstitutionsList.filter((inst) => {
+  const filtered = institutions.filter((inst) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       inst.name.toLowerCase().includes(q) ||
@@ -30,10 +43,8 @@ export default function AicteInstitutionsPage() {
 
     if (statusFilter === "All") return true;
     if (statusFilter === "Pending Scrutiny") return inst.status === "Pending Scrutiny";
-    if (statusFilter === "Under Scrutiny") return inst.status === "Under Review" || inst.status === "Pending Scrutiny";
-    if (statusFilter === "Deficiency Raised") return inst.status === "Deficient";
-    if (statusFilter === "Completed") return inst.status === "Verified";
-    return true;
+    if (statusFilter === "Under Review") return inst.status === "Under Review";
+    return inst.status === statusFilter;
   });
 
   return (
@@ -43,10 +54,10 @@ export default function AicteInstitutionsPage() {
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-[#071a30] flex items-center gap-2">
             <Building className="w-5 h-5 text-amber-600" />
-            <span>AICTE Institutions Directory</span>
+            <span>Demonstration application directory</span>
           </h1>
           <p className="text-xs text-slate-500">
-            Institutional dockets and application portfolios assigned for scrutiny
+            One illustrative Kongu Engineering College application. Application data is stored in this browser.
           </p>
         </div>
 
@@ -73,7 +84,11 @@ export default function AicteInstitutionsPage() {
           <button
             key={opt}
             type="button"
-            onClick={() => setStatusFilter(opt)}
+            onClick={() => {
+              setStatusFilter(opt);
+              setSearchParams(opt === "Pending Scrutiny" ? { filter: "pending" } : {}, { replace: true });
+            }}
+            aria-pressed={statusFilter === opt}
             className={`px-3 py-1 rounded text-xs font-semibold whitespace-nowrap transition ${
               statusFilter === opt
                 ? "bg-[#071a30] text-white shadow-xs"
@@ -95,28 +110,21 @@ export default function AicteInstitutionsPage() {
                 <th className="px-3.5 py-2.5">AICTE ID</th>
                 <th className="px-3.5 py-2.5">State</th>
                 <th className="px-3.5 py-2.5">Application ID</th>
-                <th className="px-3.5 py-2.5 text-center">Documents Submitted</th>
+                <th className="px-3.5 py-2.5 text-center">Document Records</th>
                 <th className="px-3.5 py-2.5">Scrutiny Status</th>
                 <th className="px-3.5 py-2.5 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filtered.map((inst) => (
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">No applications match this search or status filter.</td></tr>
+              ) : filtered.map((inst) => (
                 <tr
                   key={inst.id}
-                  className={`transition-colors ${
-                    inst.id === "KEC001" ? "bg-amber-50/40 hover:bg-amber-50/70" : "hover:bg-blue-50/20"
-                  }`}
+                  className="transition-colors hover:bg-blue-50/30"
                 >
                   <td className="px-3.5 py-3">
-                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                      <span>{inst.name}</span>
-                      {inst.id === "KEC001" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          Demo Primary
-                        </span>
-                      )}
-                    </div>
+                    <div className="font-bold text-slate-900">{inst.name}</div>
                     <div className="text-[11px] text-slate-500 font-medium">
                       {inst.district} • {inst.type}
                     </div>
@@ -131,7 +139,7 @@ export default function AicteInstitutionsPage() {
                     {inst.applicationId}
                   </td>
                   <td className="px-3.5 py-3 text-center font-mono font-bold text-slate-900">
-                    {inst.submittedCount} / {inst.totalRequired}
+                    {inst.documentRecordCount}
                   </td>
                   <td className="px-3.5 py-3">
                     <StatusBadge status={inst.status} size="sm" />

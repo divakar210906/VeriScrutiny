@@ -32,7 +32,7 @@ export default function RequiredDocumentsPage() {
             <span>Documents Required for Selected Application / Approval Category</span>
           </h1>
           <p className="text-xs text-slate-500">
-            Regulatory documentation checklist mapped to institutional application classification
+            Illustrative document categories for the demonstration; official application-specific requirements are not configured.
           </p>
         </div>
 
@@ -41,7 +41,7 @@ export default function RequiredDocumentsPage() {
           className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0b2545] hover:bg-[#134074] text-white rounded text-xs font-semibold shadow-sm transition"
         >
           <Upload className="w-3.5 h-3.5 text-amber-400" />
-          <span>Upload Document</span>
+          <span>Upload supporting document</span>
         </Link>
       </div>
 
@@ -58,11 +58,11 @@ export default function RequiredDocumentsPage() {
           </div>
           <div>
             <span className="text-[11px] text-slate-500 uppercase font-semibold block">Regulatory Body</span>
-            <span className="font-bold text-[#0b2545]">AICTE Southern Regional Office</span>
+            <span className="font-bold text-[#0b2545]">Demonstration workflow</span>
           </div>
           <div>
             <span className="text-[11px] text-slate-500 uppercase font-semibold block">Configuration</span>
-            <span className="font-mono text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-800">Sample / Demo Set</span>
+            <span className="font-mono text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-800">Illustrative list</span>
           </div>
         </div>
       </div>
@@ -71,7 +71,7 @@ export default function RequiredDocumentsPage() {
       <div className="p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900 flex items-start gap-2">
         <Info className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
         <p>
-          Document requirements vary by institution type, program category (Engineering, Management, Pharmacy, Architecture), and application level (New Institution vs. Extension of Approval). The items displayed below represent the required filings for this specific application docket.
+          This list is illustrative and is not sourced from the current official AICTE requirements for this application. Requirement applicability and validity rules have not been configured; confirm the applicable category against authoritative guidance before use.
         </p>
       </div>
 
@@ -89,7 +89,7 @@ export default function RequiredDocumentsPage() {
                   <span>{category}</span>
                 </h2>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  {items.length} Required Parameters
+                  {items.length} Document entries
                 </span>
               </div>
 
@@ -97,11 +97,11 @@ export default function RequiredDocumentsPage() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-[#f8fafc] border-b border-slate-200 text-slate-700 uppercase font-semibold text-[10px] tracking-wider">
-                      <th className="px-3.5 py-2">Document Name</th>
-                      <th className="px-3.5 py-2 w-36">Category</th>
+                      <th className="px-3.5 py-2">Document</th>
                       <th className="px-3.5 py-2 w-28">Requirement</th>
-                      <th className="px-3.5 py-2 w-52">Validity Requirement</th>
-                      <th className="px-3.5 py-2 w-36">Submission Status</th>
+                      <th className="px-3.5 py-2 w-32">Submission status</th>
+                      <th className="px-3.5 py-2 w-36">Last updated</th>
+                      <th className="px-3.5 py-2 w-36">Scrutiny status</th>
                       <th className="px-3.5 py-2 w-40 text-right">Action</th>
                     </tr>
                   </thead>
@@ -134,25 +134,24 @@ export default function RequiredDocumentsPage() {
                               </div>
                             )}
                           </td>
-                          <td className="px-3.5 py-3 text-slate-600 font-medium text-xs">
-                            {item.category}
-                          </td>
                           <td className="px-3.5 py-3">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                item.requirement === "Mandatory"
-                                  ? "bg-red-50 text-red-700 border border-red-200"
-                                  : "bg-slate-100 text-slate-600 border border-slate-200"
-                              }`}
-                            >
-                              {item.requirement}
-                            </span>
+                            <span className="font-semibold text-slate-800">{item.requirement}</span>
+                            <span className="mt-1 block text-[10px] text-slate-500">Illustrative</span>
                           </td>
                           <td className="px-3.5 py-3 text-slate-600 text-[11px]">
-                            {item.validityRequirement || "Validity / applicable validity requirement"}
+                            {matchedDoc ? "Uploaded" : "Not uploaded"}
+                          </td>
+                          <td className="px-3.5 py-3 text-slate-600 text-[11px]">
+                            {matchedDoc
+                              ? new Date(matchedDoc.submissionDate).toLocaleDateString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
                           </td>
                           <td className="px-3.5 py-3">
-                            <StatusBadge status={currentStatus} size="sm" />
+                            <StatusBadge status={matchedDoc ? currentStatus : "Not Submitted"} size="sm" />
                           </td>
                           <td className="px-3.5 py-3 text-right">
                             {hasDeficiency ? (

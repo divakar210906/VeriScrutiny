@@ -71,6 +71,24 @@ export function StatusBadge({ status, size = "md" }: { status: BadgeType; size?:
     );
   }
 
+  if (normalized === "DEFICIENT") {
+    return (
+      <span className={`inline-flex items-center rounded border border-rose-300 bg-rose-50 text-rose-800 ${sizeClasses}`}>
+        <AlertTriangle className="h-3.5 w-3.5 text-rose-600 flex-shrink-0" />
+        <span>{status}</span>
+      </span>
+    );
+  }
+
+  if (normalized === "PENDING SCRUTINY" || normalized === "PENDING") {
+    return (
+      <span className={`inline-flex items-center rounded border border-amber-300 bg-amber-50 text-amber-900 ${sizeClasses}`}>
+        <Clock className="h-3.5 w-3.5 text-amber-700 flex-shrink-0" />
+        <span>{status}</span>
+      </span>
+    );
+  }
+
   if (normalized === "RE-SUBMITTED") {
     return (
       <span

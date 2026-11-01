@@ -5,7 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useDocuments } from "../hooks/useDocuments";
 import { institution } from "../mockData";
 import { submitDocument } from "../utils/api";
-import { saveFileUrl } from "../utils/storage";
+import { saveDocumentFile } from "../utils/storage";
 import type { Document, DocumentDetails } from "../types";
 import { 
   Upload, 
@@ -84,15 +84,18 @@ export default function SubmitDocumentPage() {
       fileName,
       fileSize,
       checksum: "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
-      status: "Under Scrutiny",
+      status: "Submitted",
     };
 
     try {
       const response = await submitDocument(details, form.file);
       const fullDetails: DocumentDetails = {
         ...details,
-        status: response.status,
-        scrutinySummary: response.scrutinySummary,
+        extractedFields: response.extractedFields,
+        recommendation: response.recommendation,
+        recommendationReason: response.recommendationReason,
+        analysisResult: response,
+        analysisDate: typeof response.meta?.analyzedAt === "string" ? response.meta.analyzedAt : undefined,
         meta: response.meta,
       };
       const newDocument: Document = {
@@ -105,14 +108,12 @@ export default function SubmitDocumentPage() {
         issueDate: details.issueDate,
         expiryDate: details.expiryDate,
         submissionDate: details.submissionDate,
-        status: response.status,
-        lastScrutinized: new Date().toISOString(),
+        status: "Submitted",
         details: fullDetails,
         checklist: response.checklist,
       };
       if (form.file) {
-        const url = URL.createObjectURL(form.file);
-        saveFileUrl(newId, url);
+        await saveDocumentFile(newId, form.file);
       }
       setDocs([newDocument, ...docs]);
       setCreatedDocId(newId);
@@ -130,8 +131,8 @@ export default function SubmitDocumentPage() {
         </div>
         <h2 className="text-xl font-bold text-[#0b2545]">Document Successfully Filed & Ingested</h2>
         <p className="text-xs text-slate-600 leading-relaxed">
-          The document has been securely uploaded to the institutional repository with Document ID:{" "}
-          <strong className="font-mono">{createdDocId}</strong>. Automated statutory rules have been initiated.
+          The document has been saved in this browser and analyzed by the configured backend with Document ID:{" "}
+          <strong className="font-mono">{createdDocId}</strong>. Advisory findings are available for officer review; no officer decision is made automatically.
         </p>
         <div className="pt-4 flex justify-center gap-3">
           <button

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDocuments } from "../../hooks/useDocuments";
 import { StatusBadge } from "../../components/StatusBadge";
+import { loadVerificationHistory } from "../../utils/storage";
 import { 
   FileCheck, 
   RotateCcw, 
@@ -29,6 +30,11 @@ export default function MySubmissionsPage() {
       d.documentNumber.toLowerCase().includes(search.toLowerCase()) ||
       (d.trackingId && d.trackingId.toLowerCase().includes(search.toLowerCase()))
   );
+  const selectedHistory = selectedDoc
+    ? loadVerificationHistory()
+        .filter((item) => item.documentId === selectedDoc.id)
+        .sort((left, right) => right.scrutinyDate.localeCompare(left.scrutinyDate))
+    : [];
 
   return (
     <div className="space-y-4">
@@ -50,6 +56,7 @@ export default function MySubmissionsPage() {
             <input
               type="text"
               placeholder="Search by title, number, or tracking ID..."
+              aria-label="Search submitted documents"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-[#134074] w-64"
@@ -80,14 +87,23 @@ export default function MySubmissionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filtered.map((doc) => {
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center">
+                    <p className="font-semibold text-slate-800">{search ? "No matching submissions" : "No submissions yet"}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {search ? "Try a different document name, reference, or tracking ID." : "Upload a document to start an application submission."}
+                    </p>
+                  </td>
+                </tr>
+              ) : filtered.map((doc) => {
                 const isDeficient = doc.status === "Deficiency Raised" || doc.status === "Needs Correction";
-                const trackingCode = doc.trackingId || doc.details?.trackingId || `VS-2026-KEC-${doc.id.replace("doc-", "100")}`;
+                const trackingCode = doc.trackingId || doc.details?.trackingId || "Not assigned";
                 const remarkText =
                   doc.details.rejectionReason ||
                   doc.details.officerRemarks ||
                   doc.details.scrutinySummary?.reason ||
-                  (doc.status === "Verified" ? "Certified compliant by AICTE Scrutiny Cell." : "Queued for standing scrutiny.");
+                  "No officer remark recorded.";
 
                 return (
                   <tr
@@ -180,14 +196,15 @@ export default function MySubmissionsPage() {
       {/* Details Modal */}
       {selectedDoc && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded border border-slate-300 shadow-xl max-w-lg w-full p-5 space-y-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="submission-details-title" className="bg-white rounded border border-slate-300 shadow-xl max-h-[85vh] max-w-lg w-full overflow-y-auto p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 className="font-bold text-sm text-[#0b2545] flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-amber-600" />
-                <span>Document Details: {selectedDoc.name}</span>
+                <span id="submission-details-title">Document Details: {selectedDoc.name}</span>
               </h3>
               <button
                 onClick={() => setSelectedDoc(null)}
+                aria-label="Close document details"
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
@@ -197,7 +214,7 @@ export default function MySubmissionsPage() {
             <div className="space-y-2 text-xs text-slate-700">
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500 font-semibold">Tracking Reference:</span>
-                <span className="font-mono font-bold text-[#0b2545]">{selectedDoc.trackingId || `VS-2026-KEC-${selectedDoc.id.replace("doc-", "100")}`}</span>
+                <span className="font-mono font-bold text-[#0b2545]">{selectedDoc.trackingId || "Not assigned"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500 font-semibold">Registration / Certificate No:</span>
@@ -224,12 +241,36 @@ export default function MySubmissionsPage() {
                 <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-900 text-xs mt-2">
                   <div className="font-bold flex items-center gap-1 mb-0.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                    <span>AICTE Officer Scrutiny Remark:</span>
+                    <span>Officer remark:</span>
                   </div>
                   <div>{selectedDoc.details.rejectionReason}</div>
                 </div>
               )}
             </div>
+
+            <section aria-labelledby="submission-timeline-title" className="border-t border-slate-200 pt-3">
+              <h4 id="submission-timeline-title" className="text-xs font-bold uppercase tracking-wide text-slate-700">
+                Submission and status timeline
+              </h4>
+              <ol className="mt-2 border-l border-slate-300 pl-4">
+                <li className="relative py-1.5 text-xs">
+                  <span className="absolute -left-[21px] top-2.5 h-2.5 w-2.5 border border-white bg-blue-700" aria-hidden="true" />
+                  <time dateTime={selectedDoc.submissionDate} className="font-semibold text-slate-800">
+                    {new Date(selectedDoc.submissionDate).toLocaleString("en-IN")}
+                  </time>
+                  <p className="mt-0.5 text-slate-600">Document submission recorded in this browser.</p>
+                </li>
+                {selectedHistory.map((event) => (
+                  <li key={event.id} className="relative py-1.5 text-xs">
+                    <span className="absolute -left-[21px] top-2.5 h-2.5 w-2.5 border border-white bg-slate-500" aria-hidden="true" />
+                    <time className="font-semibold text-slate-800">{event.scrutinyDate}</time>
+                    <p className="mt-0.5 font-medium text-slate-700">{event.action || event.result}</p>
+                    <p className="mt-0.5 text-slate-600">{event.remarks}</p>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 text-[10px] text-slate-500">Timeline is derived from this browser’s submission and status history.</p>
+            </section>
 
             <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
               <button

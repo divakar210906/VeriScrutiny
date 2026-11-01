@@ -1,12 +1,10 @@
 // src/pages/institution/UploadDocumentPage.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocuments } from "../../hooks/useDocuments";
 import { institution } from "../../mockData";
-import { saveFileUrl } from "../../utils/storage";
-import { analyzeDocumentWithML } from "../../utils/mlApiClient";
-import type { DocumentScrutinyResult } from "../../utils/documentScrutinyEngine";
+import { saveDocumentFile } from "../../utils/storage";
 import type { Document, DocumentDetails, DocumentStatus } from "../../types";
 import { 
   Upload, 
@@ -14,8 +12,6 @@ import {
   ArrowLeft,
   FileText,
   AlertTriangle,
-  Sparkles,
-  RotateCw
 } from "lucide-react";
 
 const todayIsoDate = () => new Date().toISOString().split("T")[0];
@@ -32,101 +28,104 @@ export default function UploadDocumentPage() {
 
   const existingDoc = replaceId ? docs.find((d) => d.id === replaceId) : undefined;
 
-  const [form, setForm] = useState({
-    type: queryType || "Fire Safety Certificate",
-    category: queryCategory || "Fire & Safety",
-    documentNumber: "",
-    issuingAuthority: "",
-    issueDate: todayIsoDate(),
-    expiryDate: oneYearLaterIsoDate(),
+  const [form, setForm] = useState(() => ({
+    type: existingDoc?.name ?? queryType ?? "Fire Safety Certificate",
+    category: existingDoc?.category ?? queryCategory ?? "Fire & Safety",
+    documentNumber: existingDoc?.documentNumber ?? "",
+    issuingAuthority: existingDoc?.issuingAuthority ?? "",
+    issueDate: existingDoc?.issueDate?.split("T")[0] ?? todayIsoDate(),
+    expiryDate: existingDoc?.expiryDate?.split("T")[0] ?? oneYearLaterIsoDate(),
     file: null as File | null,
     fileName: "",
     fileSize: "",
-    checksum: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-  });
+    checksum: "",
+  }));
 
   const [submitted, setSubmitted] = useState(false);
   const [trackingReference, setTrackingReference] = useState("");
   const [submissionStatus, setSubmissionStatus] = useState<"Submitted for Scrutiny" | "Re-submitted">("Submitted for Scrutiny");
 
-  // Real-time AI Pre-scan States
-  const [isScanning, setIsScanning] = useState(false);
-  const [mlPreScan, setMlPreScan] = useState<DocumentScrutinyResult | null>(null);
-
-  useEffect(() => {
-    if (existingDoc) {
-      setForm((prev) => ({
-        ...prev,
-        type: existingDoc.name,
-        category: existingDoc.category,
-        documentNumber: existingDoc.documentNumber,
-        issuingAuthority: existingDoc.issuingAuthority,
-        issueDate: existingDoc.issueDate ? existingDoc.issueDate.split("T")[0] : prev.issueDate,
-        expiryDate: existingDoc.expiryDate ? existingDoc.expiryDate.split("T")[0] : prev.expiryDate,
-      }));
-    }
-  }, [existingDoc]);
+  const [fileError, setFileError] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement;
     const { name, value, files } = target;
 
-    if (files && files[0]) {
-      const file = files[0];
+    if (target.type === "file") {
+      const file = files?.[0];
+      if (!file) return;
+      const acceptedTypes = ["application/pdf", "image/jpeg", "image/png"];
+      const acceptedExtensions = /\.(pdf|jpe?g|png)$/i;
+      if (!acceptedTypes.includes(file.type) || !acceptedExtensions.test(file.name)) {
+        setFileError("Choose a PDF, JPG, or PNG file.");
+        target.value = "";
+        return;
+      }
+      if (file.size === 0 || file.size > 25 * 1024 * 1024) {
+        setFileError("The file must be greater than 0 bytes and no larger than 25 MB.");
+        target.value = "";
+        return;
+      }
+      if (!window.crypto?.subtle) {
+        setFileError("This browser cannot calculate a SHA-256 checksum. Use a current browser over HTTPS or localhost.");
+        target.value = "";
+        return;
+      }
+
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      const simpleHash = (file.name + file.size)
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-        .toString(16)
-        .padEnd(64, "a")
-        .substring(0, 64);
-
-      setForm((prev) => ({
-        ...prev,
-        file,
-        fileName: file.name,
-        fileSize: `${sizeMB} MB`,
-        checksum: simpleHash,
-      }));
-
-      // Trigger Live ML Pre-Scan
-      setIsScanning(true);
-      setMlPreScan(null);
-      analyzeDocumentWithML(file, form.type, institution.name, institution.id)
-        .then((result) => {
-          setIsScanning(false);
-          if (result) {
-            setMlPreScan(result);
-            // Auto-populate extracted registration or certificate number if not already entered
-            const docNumField = result.extractedFields.find(
-              (f) => (f.field.toLowerCase().includes("serial") || f.field.toLowerCase().includes("number")) && f.value !== "DETECTED VIA SCAN"
-            );
-            const authField = result.extractedFields.find(
-              (f) => f.field.toLowerCase().includes("authority") && f.value !== "Competent State Authority"
-            );
-
-            if (docNumField || authField) {
-              setForm((curr) => ({
-                ...curr,
-                documentNumber: docNumField?.value || curr.documentNumber,
-                issuingAuthority: authField?.value || curr.issuingAuthority,
-              }));
-            }
-          }
+      setFileError("");
+      setSubmissionError("");
+      void file.arrayBuffer()
+        .then((buffer) => window.crypto.subtle.digest("SHA-256", buffer))
+        .then((hash) => {
+          const checksum = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+          setForm((prev) => ({
+            ...prev,
+            file,
+            fileName: file.name,
+            fileSize: `${sizeMB} MB`,
+            checksum,
+          }));
         })
         .catch(() => {
-          setIsScanning(false);
+          setFileError("The selected file could not be read. Choose it again or use a different file.");
+          target.value = "";
         });
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setSubmissionError("");
+    if (!form.file || !form.checksum) {
+      setSubmissionError("Select a valid document file before submitting.");
+      return;
+    }
+
+    if (new Date(form.expiryDate) < new Date(form.issueDate)) {
+      setSubmissionError("The expiry date cannot be earlier than the issue date.");
+      return;
+    }
 
     const isReplacing = Boolean(existingDoc);
-    const trackingCode = existingDoc?.trackingId || `VS-2026-KEC-${Math.floor(1010 + Math.random() * 8900)}`;
+    if (existingDoc && !window.confirm(`Replace the current file for ${existingDoc.name}? The new file will be recorded as a re-submission.`)) {
+      return;
+    }
+    const trackingCode = existingDoc?.trackingId || `VS-LOCAL-${Date.now()}`;
+    const newId = existingDoc?.id ?? `doc-${crypto.randomUUID()}`;
+    setIsSubmitting(true);
+    try {
+      await saveDocumentFile(newId, form.file);
+    } catch {
+      setIsSubmitting(false);
+      setSubmissionError("The document could not be saved in this browser. Check available storage and try again.");
+      return;
+    }
 
     if (isReplacing && existingDoc) {
       // Update existing document
@@ -171,22 +170,17 @@ export default function UploadDocumentPage() {
         return doc;
       });
 
-      if (form.file) {
-        const url = URL.createObjectURL(form.file);
-        saveFileUrl(existingDoc.id, url);
-      }
-
       setDocs(updatedDocs);
       setTrackingReference(trackingCode);
       setSubmissionStatus("Re-submitted");
       setSubmitted(true);
+      setIsSubmitting(false);
       window.dispatchEvent(new Event("veriscrutiny_update"));
       return;
     }
 
     // New Document upload
-    const newId = `doc-${docs.length + 1}`;
-    const fileName = form.fileName || `${form.type.replace(/\s+/g, "_")}.pdf`;
+    const fileName = form.fileName;
 
     const details: DocumentDetails = {
       type: form.type,
@@ -201,17 +195,17 @@ export default function UploadDocumentPage() {
       submissionDate: new Date().toISOString(),
       uploadedBy: "Registrar / Institutional Nodal Officer",
       fileName,
-      fileSize: form.fileSize || "2.1 MB",
+      fileSize: form.fileSize,
       checksum: form.checksum,
       status: "Submitted",
       trackingId: trackingCode,
       scrutinySummary: {
         lastScrutinized: new Date().toISOString(),
-        scrutinizedBy: "AICTE Central Standing Scrutiny Committee",
+        scrutinizedBy: "Not yet assigned",
         status: "Submitted",
-        reason: "Document successfully ingested. Pending verification by AICTE In-charge.",
-        totalChecks: 8,
-        passed: 8,
+        reason: "Submitted to the browser-local demonstration workflow. Officer analysis has not been run.",
+        totalChecks: 0,
+        passed: 0,
         warnings: 0,
         failed: 0,
       },
@@ -233,15 +227,11 @@ export default function UploadDocumentPage() {
       checklist: [],
     };
 
-    if (form.file) {
-      const url = URL.createObjectURL(form.file);
-      saveFileUrl(newId, url);
-    }
-
     setDocs([newDoc, ...docs]);
     setTrackingReference(trackingCode);
     setSubmissionStatus("Submitted for Scrutiny");
     setSubmitted(true);
+    setIsSubmitting(false);
     window.dispatchEvent(new Event("veriscrutiny_update"));
   };
 
@@ -283,7 +273,7 @@ export default function UploadDocumentPage() {
         </div>
 
         <p className="text-xs text-slate-500">
-          The submission has been securely ingested into the AICTE regional scrutiny queue with verifiable SHA-256 integrity hash.
+          The document and its SHA-256 checksum have been saved in this browser's demonstration workspace. This does not transmit the file to AICTE or a remote server.
         </p>
 
         <div className="pt-2 flex justify-center gap-3">
@@ -294,24 +284,10 @@ export default function UploadDocumentPage() {
             View Submission
           </button>
           <button
-            onClick={() => {
-              setSubmitted(false);
-              setForm({
-                type: "Building Stability Certificate",
-                category: "Infrastructure",
-                documentNumber: "",
-                issuingAuthority: "",
-                issueDate: new Date().toISOString().split("T")[0],
-                expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                file: null,
-                fileName: "",
-                fileSize: "",
-                checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-              });
-            }}
+            onClick={() => navigate("/institution/required-documents")}
             className="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-semibold transition"
           >
-            Upload Another
+            Back to required documents
           </button>
         </div>
       </div>
@@ -350,10 +326,9 @@ export default function UploadDocumentPage() {
         <div className="p-3.5 bg-amber-50 border-l-4 border-amber-600 rounded text-xs text-amber-950 flex items-start gap-2.5 shadow-xs">
           <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="space-y-0.5">
-            <span className="font-bold">Replacing Deficient / Existing Submission:</span>
+            <span className="font-bold">Replacing an existing submission:</span>
             <p>
-              You are uploading a revised file for <strong className="text-slate-900">{existingDoc.name}</strong> (Tracking ID: <span className="font-mono font-bold">{existingDoc.trackingId}</span>).
-              Upon submission, status will automatically update to <strong>Re-submitted</strong> for AICTE In-charge re-examination.
+              A replacement file for <strong className="text-slate-900">{existingDoc.name}</strong> will be saved as a new re-submission. Previous file versions are not currently retained.
             </p>
           </div>
         </div>
@@ -481,21 +456,21 @@ export default function UploadDocumentPage() {
               type="file"
               id="file-input"
               accept=".pdf,.jpg,.jpeg,.png"
+              required
               onChange={handleChange}
-              className="hidden"
+              className="sr-only"
             />
             <label htmlFor="file-input" className="cursor-pointer space-y-2 block">
               <div className="w-10 h-10 rounded-full bg-blue-50 text-[#134074] flex items-center justify-center mx-auto">
                 <Upload className="w-5 h-5" />
               </div>
               <div className="text-xs font-bold text-slate-800">
-                {form.file ? form.file.name : "Click to select or drag and drop document"}
+                {form.file ? form.file.name : "Select a document file"}
               </div>
-              <p className="text-[11px] text-slate-500">
-                Supports PDF, JPG, and PNG files up to 25 MB
-              </p>
             </label>
           </div>
+          <p className="mt-2 text-[11px] text-slate-500">PDF, JPG, or PNG · Maximum 25 MB. Files are stored in this browser only.</p>
+          {fileError && <p role="alert" className="mt-2 text-sm text-rose-800">{fileError}</p>}
         </div>
 
         {/* Display File Metadata: Name, Size, Checksum */}
@@ -506,56 +481,13 @@ export default function UploadDocumentPage() {
               <span>File Selected: {form.fileName}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-              <div>File Size: <strong className="text-slate-900">{form.fileSize || "1.8 MB"}</strong></div>
-              <div className="truncate">SHA-256: <strong className="text-slate-900">{form.checksum}</strong></div>
+              <div>File Size: <strong className="text-slate-900">{form.fileSize}</strong></div>
+              <div className="truncate">SHA-256: <strong className="text-slate-900">{form.checksum || "Calculating…"}</strong></div>
             </div>
           </div>
         )}
 
-        {/* AI PRE-SCAN RESULT BANNER */}
-        {isScanning && (
-          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900 flex items-center gap-2.5">
-            <RotateCw className="w-4 h-4 animate-spin text-indigo-600" />
-            <span>Scanning document with ML Engine (Extracting OCR tokens, ELA Forensics & Official Stamp)...</span>
-          </div>
-        )}
-
-        {mlPreScan && !isScanning && (
-          <div className="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded text-xs space-y-2 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                AI Scrutiny Pre-Check Cleared
-              </span>
-              <span className="font-mono text-[10px] font-bold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded">
-                FastAPI ML Engine
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-[11px] pt-1 font-mono">
-              <div className="p-2 bg-white/80 rounded border border-emerald-200">
-                <span className="text-slate-500 block text-[10px]">ELA Integrity</span>
-                <strong className="text-emerald-800">
-                  {mlPreScan.tamperingScore !== undefined ? `${(100 - mlPreScan.tamperingScore).toFixed(1)}% Authentic` : "98.4% Authentic"}
-                </strong>
-              </div>
-              <div className="p-2 bg-white/80 rounded border border-emerald-200">
-                <span className="text-slate-500 block text-[10px]">Department Seal</span>
-                <strong className="text-emerald-800">
-                  {mlPreScan.sealDetected !== false ? "✓ DETECTED" : "UNRESOLVED"}
-                </strong>
-              </div>
-              <div className="p-2 bg-white/80 rounded border border-emerald-200">
-                <span className="text-slate-500 block text-[10px]">Serial No. Match</span>
-                <strong className="text-emerald-800">
-                  {form.documentNumber ? "✓ AUTO-FILLED" : "FOUND"}
-                </strong>
-              </div>
-            </div>
-            <p className="text-[11px] text-emerald-900 font-medium">
-              Extracted certificate parameters and issuing authority have been auto-populated into the form above.
-            </p>
-          </div>
-        )}
+        {submissionError && <p role="alert" className="rounded border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">{submissionError}</p>}
 
         {/* Form Actions */}
         <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
@@ -568,10 +500,11 @@ export default function UploadDocumentPage() {
           </button>
           <button
             type="submit"
-            className="px-6 py-2.5 bg-[#0b2545] hover:bg-[#134074] text-white rounded text-xs font-bold tracking-wider uppercase shadow-sm transition flex items-center gap-2"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 bg-[#0b2545] hover:bg-[#134074] disabled:cursor-wait disabled:opacity-60 text-white rounded text-xs font-bold tracking-wider uppercase shadow-sm transition flex items-center gap-2"
           >
             <Upload className="w-4 h-4 text-amber-400" />
-            <span>{existingDoc ? "Submit Revised Document" : "Submit Document for Scrutiny"}</span>
+            <span>{isSubmitting ? "Saving document…" : existingDoc ? "Submit Revised Document" : "Submit Document for Scrutiny"}</span>
           </button>
         </div>
       </form>

@@ -28,8 +28,8 @@ export function useDocuments() {
     saveDocuments(newDocs);
   };
 
-  const changeStatus = (id: string, status: DocumentStatus, remarks?: string) => {
-    const updated = updateDocumentStatus(id, status, remarks);
+  const changeStatus = (id: string, status: DocumentStatus, remarks?: string, officerId?: string) => {
+    const updated = updateDocumentStatus(id, status, remarks, officerId);
     setDocs(updated);
   };
 

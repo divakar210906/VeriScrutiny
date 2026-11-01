@@ -1,380 +1,177 @@
-// src/pages/aicte/AicteReportPage.tsx
 import { useParams, Link } from "react-router-dom";
+import { Download, ArrowLeft, Printer, FileText } from "lucide-react";
+import { StatusBadge } from "../../components/StatusBadge";
 import { useDocuments } from "../../hooks/useDocuments";
 import { aicteInstitutionsList } from "../../mockData";
-import { StatusBadge, RuleResultBadge } from "../../components/StatusBadge";
-import { evaluateDocumentScrutiny } from "../../utils/documentScrutinyEngine";
-import { 
-  Printer, 
-  Download, 
-  ArrowLeft, 
-  ShieldCheck, 
-  QrCode, 
-  FileCheck2 
-} from "lucide-react";
 
 export default function AicteReportPage() {
-  const params = useParams<{ institutionId?: string; docId?: string; id?: string }>();
-  const institutionId = params.institutionId || "KEC001";
-  const docId = params.docId || params.id || "doc-2";
-
+  const { institutionId = "KEC001", docId, id } = useParams<{ institutionId?: string; docId?: string; id?: string }>();
+  const reference = docId ?? id ?? "";
   const { docs, loading } = useDocuments();
+  const institution = aicteInstitutionsList.find((item) => item.id === institutionId);
+  const document = docs.find((item) => item.id === reference || item.id === `doc-${reference}`);
 
-  const institutionData =
-    aicteInstitutionsList.find((i) => i.id === institutionId) || aicteInstitutionsList[0];
-
-  const doc = docs.find((d) => d.id === docId || d.id === `doc-${docId}` || d.id.replace("doc-", "") === docId) || docs[0];
-
-  if (loading || !doc) {
-    return <div className="p-8 text-center text-slate-500 font-medium">Generating administrative scrutiny report...</div>;
+  if (loading) {
+    return <p role="status" className="rounded border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading workflow record…</p>;
   }
 
-  const scrutinyResult = evaluateDocumentScrutiny(doc);
-  const checklist = scrutinyResult.checklist;
-  const passedItems = checklist.filter((c) => c.result === "PASS");
-  const warningItems = checklist.filter((c) => c.result === "WARNING");
-  const failedItems = checklist.filter((c) => c.result === "FAIL");
+  if (!institution || !document) {
+    return (
+      <section className="rounded border border-slate-300 bg-white p-6">
+        <h1 className="text-lg font-semibold text-slate-900">Workflow record not found</h1>
+        <p className="mt-2 text-sm text-slate-600">The institution or document reference in this link is unavailable.</p>
+        <Link to="/aicte/institutions" className="mt-4 inline-flex text-sm font-semibold text-blue-800 hover:underline">
+          Return to institutions
+        </Link>
+      </section>
+    );
+  }
 
-  const reportId = `SCR-2026-SR-KEC-${doc.id.replace("doc-", "00")}`;
-  const trackingCode = doc.trackingId || doc.details?.trackingId || `VS-2026-KEC-${doc.id.replace("doc-", "100")}`;
-  const scrutinyDate = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  const recordTime = document.lastScrutinized ?? document.submissionDate;
+  const remarks = document.details.officerRemarks ?? document.details.rejectionReason ?? "No officer remarks recorded.";
+  const analysis = document.details.analysisResult;
+  const reportText = [
+    "VERISCRUTINY — DEMONSTRATION WORKFLOW RECORD",
+    "This is an internal demonstration record, not an official AICTE certificate or decision.",
+    "",
+    `Institution: ${institution.name}`,
+    `Institution ID: ${institution.id}`,
+    `Application reference: ${institution.applicationId}`,
+    `Document: ${document.name}`,
+    `Document reference: ${document.documentNumber || "Not provided"}`,
+    `Tracking reference: ${document.trackingId ?? "Not assigned"}`,
+    `Category: ${document.category}`,
+    `Current workflow status: ${document.status}`,
+    `Submitted: ${new Date(document.submissionDate).toLocaleString("en-IN")}`,
+    `Last status activity: ${new Date(recordTime).toLocaleString("en-IN")}`,
+    `Officer remarks: ${remarks}`,
+    "",
+    analysis
+      ? `VeriScrutiny recommendation (advisory): ${analysis.recommendation}\n${analysis.recommendationReason}\nFindings: ${analysis.findings.map((item) => `${item.field}: ${item.verification} — ${item.value}`).join("; ")}`
+      : "VeriScrutiny recommendation: No analysis has been run for this document.",
+    analysis?.aiAnalysis
+      ? `Analysis used ${analysis.aiAnalysis.provider} with ${analysis.aiAnalysis.model} for semantic document-type ranking and section retrieval, plus OCR, deterministic rules, and visual heuristics. AI similarity scores are not probabilities or authenticity determinations.`
+      : "Analysis was not run or AI document understanding was unavailable. Any displayed rule-based results remain advisory.",
+    analysis?.aiAnalysis?.predictedDocumentType
+      ? `AI document type suggestion: ${analysis.aiAnalysis.predictedDocumentType} (similarity ${analysis.aiAnalysis.similarity ?? "unavailable"}).`
+      : "",
+    "Final application decisions remain with the responsible human officer.",
+  ].join("\n");
 
-  const officerRemarks = doc.details?.officerRemarks || doc.details?.rejectionReason || doc.details?.scrutinySummary?.reason || scrutinyResult.suggestedOfficerRemark;
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportPdf = () => {
-    // Standard administrative text export
-    const content = `VERISCRUTINY - INSTITUTIONAL DOCUMENT SCRUTINY REPORT
-(Demo / Scrutiny Assistance Report — Internal Regulatory Workflow Aid)
-================================================================================
-Report ID             : ${reportId}
-Scrutiny Date & Time  : ${scrutinyDate}
-Institution Name      : ${institutionData.name}
-AICTE Permanent ID    : ${institutionData.aictePermanentId}
-Application ID        : ${institutionData.applicationId}
-Document Name         : ${doc.name}
-Tracking ID           : ${trackingCode}
-Document Number       : ${doc.documentNumber}
-Issuing Authority     : ${doc.issuingAuthority}
-================================================================================
-VERISCRUTINY RECOMMENDATION:
-Recommendation        : ${scrutinyResult.recommendation}
-Grounds / Reason      : ${scrutinyResult.recommendationReason}
---------------------------------------------------------------------------------
-OFFICER DECISION & REMARKS:
-Officer Decision      : ${doc.status}
-Officer Remarks       : ${officerRemarks}
-Scrutinized By        : AICTE-SR-9042 (Senior Scrutiny Officer, Southern Region)
-================================================================================
-SUMMARY:
-Total Parameters      : ${checklist.length}
-Passed Parameters     : ${passedItems.length}
-Warnings              : ${warningItems.length}
-Failed Parameters     : ${failedItems.length}
-================================================================================
-Notice: This document is produced by the VeriScrutiny system for internal technical scrutiny assistance.`;
-
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = window.document.createElement("a");
-    a.href = url;
-    a.download = `VeriScrutiny_Report_${trackingCode}.txt`;
-    a.click();
+  const downloadRecord = () => {
+    const url = URL.createObjectURL(new Blob([reportText], { type: "text/plain;charset=utf-8" }));
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = `VeriScrutiny-record-${document.id}.txt`;
+    link.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top Action Bar (Hidden during Print) */}
-      <div className="no-print bg-white p-3.5 rounded border border-slate-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs">
-          <Link
-            to={`/aicte/institution/${institutionData.id}`}
-            className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 font-semibold transition"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Institution Docket</span>
-          </Link>
-          <span className="text-slate-300">|</span>
-          <Link
-            to={`/aicte/review/${institutionData.id}/${doc.id}`}
-            className="text-[#0056b3] font-semibold hover:underline flex items-center gap-1"
-          >
-            <FileCheck2 className="w-3.5 h-3.5" />
-            <span>Return to Scrutiny Screen</span>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="mx-auto max-w-4xl space-y-4">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded border border-slate-300 bg-white p-3">
+        <Link
+          to={`/aicte/review/${institution.id}/${document.id}`}
+          className="inline-flex items-center gap-2 rounded px-2 py-2 text-sm font-semibold text-blue-800 hover:bg-slate-50"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Return to application review
+        </Link>
+        <div className="flex gap-2">
           <button
-            onClick={handleExportPdf}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs text-slate-700 font-semibold transition"
+            type="button"
+            onClick={downloadRecord}
+            className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export Text / PDF</span>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Download text record
           </button>
           <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#071a30] hover:bg-slate-800 text-white rounded text-xs font-bold shadow-sm transition"
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded bg-[#0b2545] px-3 py-2 text-sm font-semibold text-white hover:bg-[#134074]"
           >
-            <Printer className="w-3.5 h-3.5 text-amber-400" />
-            <span>Print Report</span>
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            Print
           </button>
         </div>
       </div>
 
-      {/* Formal Administrative Scrutiny Report Sheet */}
-      <div className="report-sheet bg-white border border-slate-400 rounded shadow-sm p-8 max-w-4xl mx-auto space-y-6 text-slate-900 font-sans">
-        
-        {/* Header Block */}
-        <div className="border-b-2 border-slate-900 pb-4 text-center relative">
-          <div className="flex items-center justify-center gap-2 mb-1.5">
-            <div className="w-10 h-10 rounded border border-slate-900 bg-slate-50 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-[#0b2545]" />
+      <article className="report-sheet space-y-6 border border-slate-300 bg-white p-6 shadow-sm sm:p-9">
+        <header className="border-b border-slate-300 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded border border-slate-300 bg-slate-50">
+              <FileText className="h-5 w-5 text-[#0b2545]" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">VeriScrutiny · Demonstration environment</p>
+              <h1 className="mt-1 text-xl font-bold text-[#0b2545]">Application workflow record</h1>
             </div>
           </div>
-
-          <h1 className="font-serif font-black text-2xl tracking-wider text-[#0b2545] uppercase">
-            VERISCRUTINY
-          </h1>
-          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest mt-0.5">
-            Institutional Document Scrutiny Report
-          </h2>
-
-          <p className="text-[11px] text-slate-500 mt-1">
-            DEMO / Scrutiny Assistance Report — Internal Regulatory Workflow Aid
+          <p className="mt-4 border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+            This record is for workflow demonstration only. It is not an official AICTE report, approval, or certificate.
           </p>
+        </header>
 
-          <div className="absolute right-0 top-0 hidden sm:flex flex-col items-center border border-slate-300 p-1.5 rounded bg-slate-50">
-            <QrCode className="w-10 h-10 text-slate-800" />
-            <span className="text-[8px] font-mono text-slate-500 uppercase mt-0.5">VERI-AUTH</span>
-          </div>
-        </div>
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Application and document</h2>
+          <dl className="mt-3 grid gap-x-6 gap-y-4 border-y border-slate-200 py-4 text-sm sm:grid-cols-2">
+            <div><dt className="text-xs text-slate-500">Institution</dt><dd className="mt-1 font-medium text-slate-900">{institution.name}</dd></div>
+            <div><dt className="text-xs text-slate-500">Institution ID</dt><dd className="mt-1 font-mono text-slate-900">{institution.id}</dd></div>
+            <div><dt className="text-xs text-slate-500">Application reference</dt><dd className="mt-1 font-mono text-slate-900">{institution.applicationId}</dd></div>
+            <div><dt className="text-xs text-slate-500">Approval cycle</dt><dd className="mt-1 text-slate-900">2026–27</dd></div>
+            <div><dt className="text-xs text-slate-500">Document</dt><dd className="mt-1 font-medium text-slate-900">{document.name}</dd></div>
+            <div><dt className="text-xs text-slate-500">Document reference</dt><dd className="mt-1 font-mono text-slate-900">{document.documentNumber || "Not provided"}</dd></div>
+            <div><dt className="text-xs text-slate-500">Tracking reference</dt><dd className="mt-1 font-mono text-slate-900">{document.trackingId ?? "Not assigned"}</dd></div>
+            <div><dt className="text-xs text-slate-500">Submitted</dt><dd className="mt-1 text-slate-900">{new Date(document.submissionDate).toLocaleString("en-IN")}</dd></div>
+          </dl>
+        </section>
 
-        {/* Administrative Metadata Box (Section 17) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 border border-slate-300 rounded text-xs">
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Report ID:</span>
-            <span className="font-mono font-bold text-slate-900">{reportId}</span>
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Workflow record</h2>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm text-slate-600">Current document status</span>
+            <StatusBadge status={document.status} />
           </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Institution Name:</span>
-            <span className="font-bold text-slate-900">{institutionData.name}</span>
+          <p className="mt-3 text-sm text-slate-600">Last recorded status activity: {new Date(recordTime).toLocaleString("en-IN")}</p>
+          <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Officer remarks</h3>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{remarks}</p>
           </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">AICTE Permanent ID:</span>
-            <span className="font-mono font-bold text-slate-900">{institutionData.aictePermanentId}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Application ID:</span>
-            <span className="font-mono font-bold text-slate-900">{institutionData.applicationId}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Document Name:</span>
-            <span className="font-bold text-slate-900">{doc.name}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Tracking ID:</span>
-            <span className="font-mono font-bold text-[#071a30]">{trackingCode}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Scrutiny Date:</span>
-            <span className="font-mono text-slate-800">{scrutinyDate}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Officer Status:</span>
-            <StatusBadge status={doc.status} size="sm" />
-          </div>
-        </div>
+        </section>
 
-        {/* DOCUMENT INFORMATION SECTION */}
-        <div className="space-y-2">
-          <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-            1. DOCUMENT INFORMATION & EXTRACTED DATA
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs p-3 bg-white border border-slate-200 rounded">
-            <div>
-              <span className="text-slate-500 block text-[10px]">Certificate Number:</span>
-              <span className="font-mono font-bold text-slate-900">{doc.documentNumber}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">Issuing Authority:</span>
-              <span className="font-medium text-slate-900">{doc.issuingAuthority}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">Statutory Category:</span>
-              <span className="font-medium text-slate-900">{doc.category}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">Issue Date:</span>
-              <span className="font-mono text-slate-800">{new Date(doc.issueDate).toLocaleDateString("en-IN")}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">Validity / Expiry Date:</span>
-              <span className="font-mono text-slate-800">{new Date(doc.expiryDate).toLocaleDateString("en-IN")}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">SHA-256 Checksum:</span>
-              <span className="font-mono text-[10px] text-slate-600 truncate block">{doc.details?.checksum}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* SCRUTINY CHECKLIST SECTION */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900">
-              2. SCRUTINY CHECKLIST & VERIFICATION PARAMETERS
-            </h3>
-            <span className="text-[11px] font-mono text-slate-600">
-              Passed: {passedItems.length} | Warnings: {warningItems.length} | Failed: {failedItems.length}
-            </span>
-          </div>
-
-          <div className="border border-slate-300 rounded overflow-hidden text-xs">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 uppercase font-semibold text-[10px] tracking-wider">
-                  <th className="px-3 py-2 w-8 text-center">#</th>
-                  <th className="px-3 py-2 w-36">Parameter</th>
-                  <th className="px-3 py-2">Requirement</th>
-                  <th className="px-3 py-2">Extracted / Observed Value</th>
-                  <th className="px-3 py-2 w-20">Result</th>
-                  <th className="px-3 py-2">Remarks</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {checklist.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 text-center font-mono text-slate-500 font-semibold">
-                      {idx + 1}
-                    </td>
-                    <td className="px-3 py-2 font-bold text-slate-900">
-                      {item.parameter}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600 text-[11px]">
-                      {item.requirement}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-slate-800 text-[11px]">
-                      {item.extractedValue}
-                    </td>
-                    <td className="px-3 py-2">
-                      <RuleResultBadge result={item.result} />
-                    </td>
-                    <td className="px-3 py-2 text-slate-700 text-[11px]">
-                      {item.remarks}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* PARAMETER BREAKDOWN */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 bg-emerald-50/70 border border-emerald-300 rounded space-y-1">
-            <span className="font-bold text-emerald-900 uppercase text-[10px] block">Passed Parameters ({passedItems.length})</span>
-            <ul className="list-disc list-inside text-[11px] text-emerald-800 space-y-0.5">
-              {passedItems.slice(0, 4).map((p) => (
-                <li key={p.id} className="truncate">{p.parameter}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="p-3 bg-amber-50/70 border border-amber-300 rounded space-y-1">
-            <span className="font-bold text-amber-900 uppercase text-[10px] block">Warnings ({warningItems.length})</span>
-            {warningItems.length > 0 ? (
-              <ul className="list-disc list-inside text-[11px] text-amber-800 space-y-0.5">
-                {warningItems.map((w) => (
-                  <li key={w.id} className="truncate">{w.parameter}</li>
+        <section className="rounded border border-amber-300 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-950">VeriScrutiny Recommendation</h2>
+          <p className="mt-1 text-sm leading-6 text-amber-900">
+            Analysis may include local OCR and semantic document understanding alongside deterministic rules and visual heuristics. Findings are advisory and do not authenticate the document or make an officer decision.
+          </p>
+          {analysis ? (
+            <div className="mt-3 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{analysis.recommendation}</p>
+                <p className="mt-1 text-sm text-slate-800">{analysis.recommendationReason}</p>
+                <p className="mt-1 text-xs text-slate-700">
+                  Checks: {analysis.summary.passed} found/matched · {analysis.summary.warnings} require review · {analysis.summary.failed} mismatches
+                  {document.details.analysisDate ? ` · ${new Date(document.details.analysisDate).toLocaleString("en-IN")}` : ""}
+                </p>
+              </div>
+              <ul className="divide-y divide-amber-200 border-y border-amber-200">
+                {analysis.findings.map((finding) => (
+                  <li key={finding.field} className="py-2 text-sm">
+                    <span className="font-semibold">{finding.verification} · {finding.field}:</span> {finding.value}
+                  </li>
                 ))}
               </ul>
-            ) : (
-              <span className="text-[11px] text-slate-500">None detected</span>
-            )}
-          </div>
-
-          <div className="p-3 bg-rose-50/70 border border-rose-300 rounded space-y-1">
-            <span className="font-bold text-rose-900 uppercase text-[10px] block">Failed Parameters ({failedItems.length})</span>
-            {failedItems.length > 0 ? (
-              <ul className="list-disc list-inside text-[11px] text-rose-800 space-y-0.5">
-                {failedItems.map((f) => (
-                  <li key={f.id} className="truncate">{f.parameter}</li>
-                ))}
-              </ul>
-            ) : (
-              <span className="text-[11px] text-slate-500">None detected</span>
-            )}
-          </div>
-        </div>
-
-        {/* VERISCRUTINY RECOMMENDATION */}
-        <div className="p-3.5 bg-slate-50 border border-slate-300 rounded space-y-1 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-              3. VERISCRUTINY RECOMMENDATION
-            </span>
-            <span className="font-black text-xs font-mono uppercase text-[#071a30]">
-              {scrutinyResult.recommendation}
-            </span>
-          </div>
-          <p className="text-slate-800 leading-relaxed">
-            {scrutinyResult.recommendationReason}
-          </p>
-        </div>
-
-        {/* OFFICER DECISION & REMARKS */}
-        <div className="p-4 border-2 border-slate-800 rounded bg-slate-50/80 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-bold uppercase tracking-wider text-slate-900 text-sm">
-              4. OFFICER FINAL DECISION & ACTION
-            </span>
-            <StatusBadge status={doc.status} size="lg" />
-          </div>
-
-          <div>
-            <span className="text-[11px] text-slate-500 uppercase font-semibold block">Officer Remarks:</span>
-            <p className="text-slate-900 font-medium text-xs mt-0.5 bg-white p-2 rounded border border-slate-300">
-              "{officerRemarks}"
-            </p>
-          </div>
-        </div>
-
-        {/* Signatures & Audit Stamp */}
-        <div className="pt-6 border-t-2 border-slate-800 grid grid-cols-2 sm:grid-cols-3 gap-4 items-end text-xs">
-          <div>
-            <div className="w-16 h-16 rounded-full border-2 border-slate-800 flex flex-col items-center justify-center p-1 bg-slate-50 text-center">
-              <ShieldCheck className="w-5 h-5 text-[#0b2545]" />
-              <span className="text-[7px] font-bold text-slate-800 uppercase mt-0.5">OFFICIAL SEAL</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-2 font-mono">
-              AICTE Southern Regional Scrutiny Cell
-            </p>
-          </div>
+          ) : (
+            <p className="mt-2 text-sm text-amber-900">No analysis has been run for this document.</p>
+          )}
+        </section>
 
-          <div className="text-center sm:text-left">
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Scrutinized By:</span>
-            <span className="font-bold text-slate-900 block">AICTE-SR-9042</span>
-            <span className="text-[11px] text-slate-600">Senior Scrutiny Officer</span>
-          </div>
-
-          <div className="text-right">
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Date & Time:</span>
-            <span className="font-mono text-slate-900 text-[11px] block">{scrutinyDate}</span>
-            <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">Audit Log Recorded</span>
-          </div>
-        </div>
-      </div>
+        <footer className="border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500">
+          This printable workflow record reflects the current browser-stored demonstration data. It is not an official regulatory determination.
+        </footer>
+      </article>
     </div>
   );
 }

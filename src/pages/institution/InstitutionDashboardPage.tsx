@@ -1,6 +1,6 @@
 // src/pages/institution/InstitutionDashboardPage.tsx
 import { Link } from "react-router-dom";
-import { institution } from "../../mockData";
+import { institution, requiredDocumentsList } from "../../mockData";
 import { useDocuments } from "../../hooks/useDocuments";
 import { StatusBadge } from "../../components/StatusBadge";
 import { 
@@ -18,32 +18,33 @@ import {
 export default function InstitutionDashboardPage() {
   const { docs, loading } = useDocuments();
 
-  const totalRequired = 10;
-  const submittedCount = Math.min(docs.length, totalRequired);
-  const pendingCount = Math.max(0, totalRequired - submittedCount);
-
   const deficiencyDocs = docs.filter((d) => d.status === "Deficiency Raised");
   const needsCorrectionDocs = docs.filter((d) => d.status === "Needs Correction");
   const underScrutinyCount = docs.filter(
     (d) => d.status === "Under Scrutiny" || d.status === "Submitted" || d.status === "Re-submitted" || d.status === "Under Review"
   ).length;
   const verifiedCount = docs.filter((d) => d.status === "Verified").length;
+  const uploadedRequiredCount = requiredDocumentsList.filter((required) =>
+    docs.some((doc) => doc.id === required.docId || doc.name.toLowerCase().includes(required.name.toLowerCase()))
+  ).length;
+  const pendingUploadCount = Math.max(requiredDocumentsList.length - uploadedRequiredCount, 0);
 
-  // Determine Overall Application Status
-  let overallStatus: "DEFICIENCY RAISED" | "ACTION REQUIRED" | "UNDER SCRUTINY" | "APPROVED" = "UNDER SCRUTINY";
-  if (deficiencyDocs.length > 0) {
-    overallStatus = "DEFICIENCY RAISED";
-  } else if (needsCorrectionDocs.length > 0 || pendingCount > 0) {
-    overallStatus = "ACTION REQUIRED";
-  } else if (verifiedCount === totalRequired) {
-    overallStatus = "APPROVED";
-  }
+  const overallStatus = docs.length > 0 && verifiedCount === docs.length
+    ? "VERIFIED"
+    : deficiencyDocs.length > 0 || needsCorrectionDocs.length > 0
+    ? "DEFICIENCY RAISED"
+    : underScrutinyCount > 0
+    ? "UNDER SCRUTINY"
+    : docs.length > 0
+    ? "SUBMITTED"
+    : "NO SUBMISSION";
 
   const overallStatusStyles = {
     "DEFICIENCY RAISED": "bg-rose-100 text-rose-900 border-rose-300",
-    "ACTION REQUIRED": "bg-amber-100 text-amber-900 border-amber-300",
+    VERIFIED: "bg-emerald-100 text-emerald-900 border-emerald-300",
     "UNDER SCRUTINY": "bg-blue-100 text-blue-900 border-blue-300",
-    "APPROVED": "bg-emerald-100 text-emerald-900 border-emerald-300",
+    "SUBMITTED": "bg-slate-100 text-slate-800 border-slate-300",
+    "NO SUBMISSION": "bg-slate-100 text-slate-700 border-slate-300",
   }[overallStatus];
 
   if (loading) {
@@ -58,7 +59,7 @@ export default function InstitutionDashboardPage() {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 rounded">
-                AICTE Regulatory Portal
+                Demonstration application
               </span>
               <span className="text-xs text-slate-600 font-mono">
                 AICTE Permanent ID: <strong className="text-slate-900">{institution.aictePermanentId}</strong>
@@ -79,7 +80,7 @@ export default function InstitutionDashboardPage() {
             </h1>
 
             <p className="text-xs text-slate-600">
-              Application ID: <strong className="font-mono text-slate-900">APP-2026-00182</strong> • Category: Extension of Approval (EoA)
+              Application ID: <strong className="font-mono text-slate-900">DEMO-KEC-2026-01</strong> • Category: Extension of Approval (EoA)
             </p>
           </div>
 
@@ -95,33 +96,66 @@ export default function InstitutionDashboardPage() {
         </div>
       </div>
 
-      {/* Progress Bar & Summary Stats */}
-      <div className="bg-white border border-slate-300 rounded shadow-sm p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+      <section className="application-progress-panel border border-slate-300 bg-white p-4" aria-label="Application progress">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
-            <span className="font-bold text-slate-800 text-sm">Mandatory Documents Progress</span>
-            <span className="text-slate-500 ml-2">({submittedCount} / {totalRequired} Submitted)</span>
+            <h2 className="text-sm font-bold text-slate-900">Application progress</h2>
+            <p className="mt-1 text-xs text-slate-600">Approval application · DEMO-KEC-2026-01 · 2026–27</p>
           </div>
-          <span className="font-mono font-bold text-[#0b2545]">
-            {Math.round((submittedCount / totalRequired) * 100)}% Complete
+          <span className="text-xs font-semibold text-slate-600">
+            {pendingUploadCount > 0 ? `${pendingUploadCount} document entries not uploaded` : "All listed document entries uploaded"}
           </span>
         </div>
+        <ol className="application-progress-list">
+          {[
+            "Application created",
+            "Documents required",
+            "Documents submitted",
+            "Under scrutiny",
+            "Officer review",
+            "Decision recorded",
+          ].map((label, index) => {
+            const activeIndex = overallStatus === "VERIFIED"
+              ? 5
+              : deficiencyDocs.length || needsCorrectionDocs.length
+              ? 4
+              : underScrutinyCount
+              ? 3
+              : docs.length
+              ? 2
+              : 1;
+            const state = index < activeIndex ? "complete" : index === activeIndex ? "current" : "upcoming";
+            return (
+              <li key={label} className={`application-progress-step is-${state}`}>
+                <span className="application-progress-marker" aria-hidden="true">{index < activeIndex ? "✓" : index + 1}</span>
+                <span>{label}</span>
+              </li>
+            );
+          })}
+        </ol>
+        <p className="mt-3 border-t border-slate-200 pt-2 text-[11px] text-slate-600">
+          {deficiencyDocs[0]
+            ? `Action required: ${deficiencyDocs[0].name} — ${deficiencyDocs[0].details.officerRemarks || deficiencyDocs[0].details.rejectionReason || "Review the officer remark and submit a replacement."}`
+            : needsCorrectionDocs[0]
+            ? `Action required: ${needsCorrectionDocs[0].name} needs a revised document.`
+            : pendingUploadCount > 0
+            ? "Next step: review the illustrative document list and upload any supporting files required for this demonstration."
+            : "Next step: follow the officer review status and respond if a deficiency is raised."}
+        </p>
+      </section>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
-          <div 
-            className="bg-[#0b2545] h-2.5 rounded-full transition-all duration-500"
-            style={{ width: `${(submittedCount / totalRequired) * 100}%` }}
-          ></div>
+      {/* Application workflow summary */}
+      <div className="bg-white border border-slate-300 rounded shadow-sm p-4 space-y-3">
+        <div>
+          <h2 className="font-bold text-slate-800 text-sm">Application workflow</h2>
+          <p className="mt-1 text-xs text-slate-500">The document list is illustrative; category-specific official requirements are not configured.</p>
         </div>
-
-        {/* 4 Quick Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
           <div className="p-3 bg-slate-50 rounded border border-slate-200 flex items-center gap-2.5">
             <FileCheck2 className="w-4 h-4 text-slate-700" />
             <div>
-              <div className="font-bold text-slate-900">{totalRequired}</div>
-              <div className="text-[11px] text-slate-500">Required Documents</div>
+              <div className="font-bold text-slate-900">{docs.length}</div>
+              <div className="text-[11px] text-slate-500">Document records</div>
             </div>
           </div>
 
@@ -145,7 +179,7 @@ export default function InstitutionDashboardPage() {
             <AlertTriangle className="w-4 h-4 text-rose-600" />
             <div>
               <div className="font-bold text-rose-800">{deficiencyDocs.length + needsCorrectionDocs.length}</div>
-              <div className="text-[11px] text-rose-700">Deficiency / Action Req</div>
+              <div className="text-[11px] text-rose-700">Officer deficiencies</div>
             </div>
           </div>
         </div>
@@ -159,12 +193,12 @@ export default function InstitutionDashboardPage() {
               <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <span className="font-bold text-sm text-rose-900 uppercase tracking-wide">
-                  Attention Required: Regulatory Deficiency Raised by AICTE In-Charge
+                  Action required: deficiency raised by an officer
                 </span>
                 {deficiencyDocs.map((doc) => (
                   <div key={doc.id} className="text-xs text-rose-800">
                     <strong>{doc.name}:</strong> Status is <span className="font-bold">DEFICIENCY RAISED</span>.{" "}
-                    Remark: <em>"{doc.details.rejectionReason || doc.details.officerRemarks || doc.details.scrutinySummary?.reason || 'Clarification required.'}"</em>
+                    Remark: <em>"{doc.details.officerRemarks || doc.details.rejectionReason || "No officer remarks recorded."}"</em>
                   </div>
                 ))}
               </div>
@@ -187,8 +221,8 @@ export default function InstitutionDashboardPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">Action Required:</span> {needsCorrectionDocs[0]?.name} requires revision:{" "}
-              <span>{needsCorrectionDocs[0]?.details?.rejectionReason || "Faculty cadre ratio declaration must be revised to 1:2:6 as per AICTE norms."}</span>
+              <span className="font-bold">Action required:</span> An officer has requested a revised file for {needsCorrectionDocs[0]?.name}.{" "}
+              <span>{needsCorrectionDocs[0]?.details?.officerRemarks || needsCorrectionDocs[0]?.details?.rejectionReason || "No officer remarks recorded."}</span>
             </div>
           </div>
           <Link
@@ -276,7 +310,7 @@ export default function InstitutionDashboardPage() {
             <tbody className="divide-y divide-slate-100">
               {docs.slice(0, 6).map((doc) => {
                 const isDeficient = doc.status === "Deficiency Raised" || doc.status === "Needs Correction";
-                const trackingCode = doc.trackingId || doc.details?.trackingId || `VS-2026-KEC-${doc.id.replace("doc-", "100")}`;
+                const trackingCode = doc.trackingId || doc.details?.trackingId || "Not assigned";
 
                 return (
                   <tr 

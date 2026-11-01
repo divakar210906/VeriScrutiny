@@ -1,9 +1,9 @@
 // src/pages/DocumentDetailPage.tsx
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDocuments } from "../hooks/useDocuments";
+import { useDocumentFile } from "../hooks/useDocumentFile";
 import { StatusBadge } from "../components/StatusBadge";
 import DocumentPreview from "../components/DocumentPreview";
-import { loadFileUrl } from "../utils/storage";
 import { 
   FileText, 
   ArrowLeft, 
@@ -14,6 +14,7 @@ export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { docs, loading } = useDocuments();
+  const { url: previewUrl, error: fileLoadError } = useDocumentFile(id ?? "");
 
   if (loading) {
     return <div className="p-8 text-center text-slate-500 font-medium">Loading document details...</div>;
@@ -40,7 +41,6 @@ export default function DocumentDetailPage() {
   }
 
   const { details } = doc;
-  const previewUrl = loadFileUrl(doc.id);
 
   return (
     <div className="space-y-4">
@@ -88,7 +88,7 @@ export default function DocumentDetailPage() {
           <div className="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
             <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800">
-                Official Document Metadata & Extraction Record
+                Document Metadata
               </h3>
               <StatusBadge status={doc.status} size="sm" />
             </div>
@@ -151,10 +151,10 @@ export default function DocumentDetailPage() {
               <div className="sm:col-span-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                 <div className="flex items-center gap-1.5 font-mono text-slate-500 truncate">
                   <span className="font-semibold text-slate-700">SHA-256 Checksum:</span>
-                  <span className="truncate max-w-[280px]">{details.checksum}</span>
+                    <span className="truncate max-w-[280px]">{previewUrl ? details.checksum : "Not available — no source file is attached"}</span>
                 </div>
-                <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Digitally Validated
+                  <span className="text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {previewUrl ? "Checksum recorded" : "No source file"}
                 </span>
               </div>
             </div>
@@ -164,11 +164,11 @@ export default function DocumentDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800">
-                Institutional Certificate Viewer
+                Uploaded Source Document
               </h3>
-              <span className="text-[11px] text-slate-500">Official High-Fidelity Docket View</span>
+              <span className="text-[11px] text-slate-500">Original uploaded file only</span>
             </div>
-            <DocumentPreview document={doc} uploadedUrl={previewUrl} />
+            <DocumentPreview document={doc} uploadedUrl={previewUrl} fileLoadError={fileLoadError} />
           </div>
         </div>
 
@@ -182,7 +182,7 @@ export default function DocumentDetailPage() {
                 Scrutiny Assessment Summary
               </h3>
               <p className="text-[11px] text-slate-200 mt-0.5">
-                Automated statutory inspection status
+                Current workflow status
               </p>
             </div>
 
@@ -190,46 +190,22 @@ export default function DocumentDetailPage() {
               {/* Status Banner */}
               <div className="flex items-center justify-between p-3 rounded border border-slate-200 bg-slate-50">
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold">Current Audit Status:</span>
+                  <span className="text-slate-500 block text-[11px] font-semibold">Document Status:</span>
                   <span className="text-sm font-bold text-slate-900">{doc.status}</span>
                 </div>
                 <StatusBadge status={doc.status} size="lg" />
               </div>
 
-              {/* Scrutiny Decision Reason */}
               <div>
-                <span className="font-semibold text-slate-700 block mb-1">Audit Findings & Remarks:</span>
+                <span className="font-semibold text-slate-700 block mb-1">Officer Remarks:</span>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded text-slate-800 leading-relaxed text-xs">
-                  {details.scrutinySummary?.reason || "Pending initial algorithmic rule extraction and statutory cross-validation."}
+                  {details.officerRemarks || details.rejectionReason || "No officer remarks recorded. Automated analysis is not connected."}
                 </div>
               </div>
 
-              {/* Rule Checks Breakdown Metric */}
-              {details.scrutinySummary && (
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <span className="font-semibold text-slate-700 block">Verification Rules Checklist:</span>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-emerald-50 border border-emerald-200 p-2 rounded">
-                      <span className="block font-bold font-mono text-emerald-800 text-base">
-                        {details.scrutinySummary.passed}
-                      </span>
-                      <span className="text-[10px] text-emerald-700 font-semibold uppercase">Passed</span>
-                    </div>
-                    <div className="bg-amber-50 border border-amber-200 p-2 rounded">
-                      <span className="block font-bold font-mono text-amber-800 text-base">
-                        {details.scrutinySummary.warnings}
-                      </span>
-                      <span className="text-[10px] text-amber-700 font-semibold uppercase">Warnings</span>
-                    </div>
-                    <div className="bg-rose-50 border border-rose-200 p-2 rounded">
-                      <span className="block font-bold font-mono text-rose-800 text-base">
-                        {details.scrutinySummary.failed}
-                      </span>
-                      <span className="text-[10px] text-rose-700 font-semibold uppercase">Failed</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <p className="border-t border-slate-200 pt-3 text-xs leading-5 text-slate-500">
+                No automated extraction or compliance findings are available for this demonstration record.
+              </p>
 
               {/* Action Buttons */}
               <div className="space-y-2 pt-3 border-t border-slate-200">
