@@ -1,11 +1,14 @@
 import type { DocumentDetails } from "../types";
+import { runScrutinyEngine } from "./ruleEngine";
+
+const BACKEND_URL = (import.meta as any).env?.VITE_API_URL || "http://127.0.0.1:8000";
 
 /**
- * Submits a document for AICTE scrutiny to the FastAPI backend.
+ * Submits a document for AICTE scrutiny.
  *
- * The backend expects a multipart/form-data payload with the PDF file (if any)
- * and a number of plain form fields describing the document metadata.
- * It responds with a JSON object containing the full scrutiny result.
+ * If the FastAPI backend is running / accessible, it calls the ML scrutiny pipeline.
+ * If the request fails (e.g., when hosted on Vercel without a connected backend URL),
+ * it seamlessly falls back to the client-side AICTE Statutory Rule Engine.
  */
 export async function submitDocument(
   details: DocumentDetails,
@@ -25,15 +28,43 @@ export async function submitDocument(
   formData.append("academic_year", details.academicYear);
   formData.append("uploaded_by", details.uploadedBy);
 
-  const response = await fetch("http://127.0.0.1:8000/api/scrutiny/analyze", {
-    method: "POST",
-    body: formData,
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to submit document: ${response.status} ${errorText}`);
+    const response = await fetch(`${BACKEND_URL}/api/scrutiny/analyze`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch {
+    // If backend is not hosted/reachable, fallback smoothly to built-in rule engine
   }
 
-  return response.json();
+  // Graceful Fallback: client-side statutory rule engine
+  const engineResult = runScrutinyEngine(details);
+  return {
+    status: engineResult.status,
+    checklist: engineResult.checklist,
+    scrutinySummary: {
+      lastScrutinized: new Date().toISOString(),
+      scrutinizedBy: "Central Institutional Scrutiny Cell (CISC-TN)",
+      status: engineResult.status,
+      reason: engineResult.reason,
+      totalChecks: engineResult.summary.total,
+      passed: engineResult.summary.passed,
+      warnings: engineResult.summary.warnings,
+      failed: engineResult.summary.failed,
+    },
+    meta: {
+      fallback: true,
+      note: "Analyzed via Client Statutory Rule Engine (Backend microservice offline)",
+    },
+  };
 }
+
